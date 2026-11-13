@@ -50,8 +50,10 @@ static void directedEdge_correctness_assertions(H3Index h3) {
         H3Index destination;
         t_assertSuccess(
             H3_EXPORT(getDirectedEdgeDestination)(edges[i], &destination));
-        t_assert(H3_EXPORT(areNeighborCells)(h3, destination),
-                 "destination is a neighbor");
+        int isNeighbor;
+        t_assertSuccess(
+            H3_EXPORT(areNeighborCells)(h3, destination, &isNeighbor));
+        t_assert(isNeighbor, "destination is a neighbor");
     }
 }
 
@@ -87,7 +89,7 @@ static void directedEdge_boundary_assertions(H3Index h3) {
     }
 }
 
-SUITE(directedEdge) {
+SUITE(directedEdgeExhaustive) {
     TEST(directedEdge_correctness) {
         iterateAllIndexesAtRes(0, directedEdge_correctness_assertions);
         iterateAllIndexesAtRes(1, directedEdge_correctness_assertions);

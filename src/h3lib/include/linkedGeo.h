@@ -26,11 +26,6 @@
 #include "h3api.h"
 #include "latLng.h"
 
-// Error codes for normalizeMultiPolygon
-#define NORMALIZATION_SUCCESS 0
-#define NORMALIZATION_ERR_MULTIPLE_POLYGONS 1
-#define NORMALIZATION_ERR_UNASSIGNED_HOLES 2
-
 // Macros for use with polygonAlgos.h
 /** Macro: Init iteration vars for LinkedGeoLoop */
 #define INIT_ITERATION_LINKED_LOOP     \
@@ -52,14 +47,18 @@
 /** Macro: Whether a LinkedGeoLoop is empty */
 #define IS_EMPTY_LINKED_LOOP(loop) loop->first == NULL
 
-int normalizeMultiPolygon(LinkedGeoPolygon *root);
+H3Error linkedGeoPolygonToGeoMultiPolygon(const LinkedGeoPolygon *linked,
+                                          GeoMultiPolygon *out);
+H3Error geoMultiPolygonToLinkedGeoPolygon(const GeoMultiPolygon *mpoly,
+                                          LinkedGeoPolygon *out);
+H3Error normalizeMultiPolygon(LinkedGeoPolygon *root);
 LinkedGeoPolygon *addNewLinkedPolygon(LinkedGeoPolygon *polygon);
 LinkedGeoLoop *addNewLinkedLoop(LinkedGeoPolygon *polygon);
 LinkedGeoLoop *addLinkedLoop(LinkedGeoPolygon *polygon, LinkedGeoLoop *loop);
 LinkedLatLng *addLinkedCoord(LinkedGeoLoop *loop, const LatLng *vertex);
-int countLinkedPolygons(LinkedGeoPolygon *polygon);
-int countLinkedLoops(LinkedGeoPolygon *polygon);
-int countLinkedCoords(LinkedGeoLoop *loop);
+int countLinkedPolygons(const LinkedGeoPolygon *polygon);
+int countLinkedLoops(const LinkedGeoPolygon *polygon);
+int countLinkedCoords(const LinkedGeoLoop *loop);
 void destroyLinkedGeoLoop(LinkedGeoLoop *loop);
 
 // The following functions are created via macro in polygonAlgos.h,

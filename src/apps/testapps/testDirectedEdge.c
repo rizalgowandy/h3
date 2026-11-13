@@ -19,13 +19,9 @@
  * usage: `testDirectedEdge`
  */
 
-#include <stdlib.h>
-
-#include "constants.h"
 #include "h3Index.h"
-#include "latLng.h"
+#include "h3api.h"
 #include "test.h"
-#include "utility.h"
 
 // Fixtures
 static LatLng sfGeo = {0.659966917655, -2.1364398519396};
@@ -37,13 +33,20 @@ SUITE(directedEdge) {
         H3Index ring[7] = {0};
         t_assertSuccess(H3_EXPORT(gridRingUnsafe)(sf, 1, ring));
 
-        t_assert(H3_EXPORT(areNeighborCells)(sf, sf) == 0,
-                 "an index does not neighbor itself");
+        int isNeighbor;
+        t_assertSuccess(H3_EXPORT(areNeighborCells)(sf, sf, &isNeighbor));
+        t_assert(!isNeighbor, "an index does not neighbor itself");
 
         int neighbors = 0;
-        for (int i = 0; i < H3_EXPORT(maxGridDiskSize)(1); i++) {
-            if (ring[i] != 0 && H3_EXPORT(areNeighborCells)(sf, ring[i])) {
-                neighbors++;
+        int64_t neighborsSize;
+        t_assertSuccess(H3_EXPORT(maxGridDiskSize)(1, &neighborsSize));
+        for (int64_t i = 0; i < neighborsSize; i++) {
+            if (ring[i] != 0) {
+                t_assertSuccess(
+                    H3_EXPORT(areNeighborCells)(sf, ring[i], &isNeighbor));
+                if (isNeighbor) {
+                    neighbors++;
+                }
             }
         }
         t_assert(neighbors == 6,
@@ -53,10 +56,14 @@ SUITE(directedEdge) {
         t_assertSuccess(H3_EXPORT(gridRingUnsafe)(sf, 2, largerRing));
 
         neighbors = 0;
-        for (int i = 0; i < H3_EXPORT(maxGridDiskSize)(2); i++) {
-            if (largerRing[i] != 0 &&
-                H3_EXPORT(areNeighborCells)(sf, largerRing[i])) {
-                neighbors++;
+        t_assertSuccess(H3_EXPORT(maxGridDiskSize)(2, &neighborsSize));
+        for (int64_t i = 0; i < neighborsSize; i++) {
+            if (largerRing[i] != 0) {
+                t_assertSuccess(H3_EXPORT(areNeighborCells)(sf, largerRing[i],
+                                                            &isNeighbor));
+                if (isNeighbor) {
+                    neighbors++;
+                }
             }
         }
         t_assert(neighbors == 0,
@@ -64,18 +71,50 @@ SUITE(directedEdge) {
 
         H3Index sfBroken = sf;
         H3_SET_MODE(sfBroken, H3_DIRECTEDEDGE_MODE);
-        t_assert(H3_EXPORT(areNeighborCells)(sf, sfBroken) == 0,
+        t_assert(H3_EXPORT(areNeighborCells)(sf, sfBroken, &isNeighbor) ==
+                     E_CELL_INVALID,
                  "broken H3Indexes can't be neighbors");
-        t_assert(H3_EXPORT(areNeighborCells)(sfBroken, sf) == 0,
+        t_assert(H3_EXPORT(areNeighborCells)(sfBroken, sf, &isNeighbor) ==
+                     E_CELL_INVALID,
                  "broken H3Indexes can't be neighbors (reversed)");
 
         H3Index sfBigger;
         t_assertSuccess(H3_EXPORT(latLngToCell)(&sfGeo, 7, &sfBigger));
-        t_assert(H3_EXPORT(areNeighborCells)(sf, sfBigger) == 0,
+        t_assert(H3_EXPORT(areNeighborCells)(sf, sfBigger, &isNeighbor) ==
+                     E_RES_MISMATCH,
                  "hexagons of different resolution can't be neighbors");
 
-        t_assert(H3_EXPORT(areNeighborCells)(ring[2], ring[1]) == 1,
-                 "hexagons in a ring are neighbors");
+        t_assertSuccess(
+            H3_EXPORT(areNeighborCells)(ring[2], ring[1], &isNeighbor));
+        t_assert(isNeighbor, "hexagons in a ring are neighbors");
+    }
+
+    TEST(areNeighborCells_invalid) {
+        H3Index origin;
+        setH3Index(&origin, 5, 0, CENTER_DIGIT);
+        H3Index dest = origin;
+        H3_SET_INDEX_DIGIT(origin, 5, INVALID_DIGIT);
+        H3_SET_INDEX_DIGIT(dest, 5, JK_AXES_DIGIT);
+        int out;
+
+        t_assert(
+            H3_EXPORT(areNeighborCells)(origin, dest, &out) == E_CELL_INVALID,
+            "Invalid index digit origin is rejected");
+
+        setH3Index(&origin, 5, 4, CENTER_DIGIT);
+        dest = origin;
+        H3_SET_INDEX_DIGIT(origin, 5, K_AXES_DIGIT);
+        H3_SET_INDEX_DIGIT(dest, 5, IK_AXES_DIGIT);
+        t_assert(
+            H3_EXPORT(areNeighborCells)(origin, dest, &out) == E_CELL_INVALID,
+            "Invalid k subsequence origin is rejected");
+        H3_SET_INDEX_DIGIT(origin, 5, IK_AXES_DIGIT);
+        H3_SET_INDEX_DIGIT(dest, 5, K_AXES_DIGIT);
+        t_assert(
+            H3_EXPORT(areNeighborCells)(origin, dest, &out) == E_CELL_INVALID,
+            "Invalid k subsequence destination is rejected");
+        // Can't test origin and dest both having K_AXES_DIGIT as this will be
+        // rejected as the same cell.
     }
 
     TEST(cellsToDirectedEdgeAndFriends) {
@@ -104,6 +143,17 @@ SUITE(directedEdge) {
         t_assert(originDestination[1] == sf2,
                  "got the destination last in the pair request");
 
+        t_assert(H3_EXPORT(directedEdgeToCells)(0, originDestination) ==
+                     E_DIR_EDGE_INVALID,
+                 "directedEdgeToCells fails for invalid edges");
+        H3Index invalidEdge;
+        setH3Index(&invalidEdge, 1, 4, 0);
+        H3_SET_RESERVED_BITS(invalidEdge, INVALID_DIGIT);
+        H3_SET_MODE(invalidEdge, H3_DIRECTEDEDGE_MODE);
+        t_assert(H3_EXPORT(directedEdgeToCells)(invalidEdge,
+                                                originDestination) != E_SUCCESS,
+                 "directedEdgeToCells fails for invalid edges");
+
         H3Index largerRing[19] = {0};
         t_assertSuccess(H3_EXPORT(gridRingUnsafe)(sf, 2, largerRing));
         H3Index sf3 = largerRing[0];
@@ -126,6 +176,21 @@ SUITE(directedEdge) {
             "getting the origin from a null index returns error");
     }
 
+    TEST(getDirectedEdgeOriginBadInput) {
+        H3Index sf;
+        t_assertSuccess(H3_EXPORT(latLngToCell)(&sfGeo, 9, &sf));
+        H3Index ring[7] = {0};
+        t_assertSuccess(H3_EXPORT(gridRingUnsafe)(sf, 1, ring));
+        H3Index sf2 = ring[0];
+
+        H3Index edge;
+        t_assertSuccess(H3_EXPORT(cellsToDirectedEdge)(sf, sf2, &edge));
+        H3_SET_RESERVED_BITS(edge, INVALID_DIGIT);
+        H3Index out;
+        t_assert(H3_EXPORT(getDirectedEdgeDestination)(edge, &out) == E_FAILED,
+                 "Invalid directed edge fails");
+    }
+
     TEST(getDirectedEdgeDestination) {
         H3Index hexagon = 0x891ea6d6533ffff;
 
@@ -144,7 +209,7 @@ SUITE(directedEdge) {
         H3Index pentagon;
         H3Index edge;
 
-        for (int res = 0; res < MAX_H3_RES; res++) {
+        for (int res = 0; res <= MAX_H3_RES; res++) {
             t_assertSuccess(H3_EXPORT(getPentagons)(res, pentagons));
             for (int p = 0; p < NUM_PENTAGONS; p++) {
                 pentagon = pentagons[p];
@@ -179,6 +244,16 @@ SUITE(directedEdge) {
                  "edges validate correctly");
         t_assert(H3_EXPORT(isValidDirectedEdge)(sf) == 0,
                  "hexagons do not validate");
+
+        H3Index undirectedEdge = edge;
+        H3_SET_MODE(undirectedEdge, H3_EDGE_MODE);
+        t_assert(H3_EXPORT(isValidDirectedEdge)(undirectedEdge) == 0,
+                 "undirected edges do not validate");
+
+        H3Index hexagonWithReserved = sf;
+        H3_SET_RESERVED_BITS(hexagonWithReserved, 1);
+        t_assert(H3_EXPORT(isValidDirectedEdge)(hexagonWithReserved) == 0,
+                 "hexagons with reserved bits do not validate");
 
         H3Index fakeEdge = sf;
         H3_SET_MODE(fakeEdge, H3_DIRECTEDEDGE_MODE);
@@ -263,7 +338,7 @@ SUITE(directedEdge) {
         const int expectedVertices[][2] = {{3, 4}, {1, 2}, {2, 3},
                                            {5, 0}, {4, 5}, {0, 1}};
 
-        for (int res = 0; res < MAX_H3_RES; res++) {
+        for (int res = 0; res <= MAX_H3_RES; res++) {
             t_assertSuccess(H3_EXPORT(latLngToCell)(&sfGeo, res, &sf));
             t_assertSuccess(H3_EXPORT(cellToBoundary)(sf, &boundary));
             t_assertSuccess(H3_EXPORT(originToDirectedEdges)(sf, edges));
@@ -292,7 +367,7 @@ SUITE(directedEdge) {
         const int expectedVertices[][3] = {{-1, -1, -1}, {2, 3, 4}, {4, 5, 6},
                                            {8, 9, 0},    {6, 7, 8}, {0, 1, 2}};
 
-        for (int res = 1; res < MAX_H3_RES; res += 2) {
+        for (int res = 1; res <= MAX_H3_RES; res += 2) {
             setH3Index(&pentagon, res, 24, 0);
             t_assertSuccess(H3_EXPORT(cellToBoundary)(pentagon, &boundary));
             t_assertSuccess(H3_EXPORT(originToDirectedEdges)(pentagon, edges));
@@ -330,7 +405,7 @@ SUITE(directedEdge) {
         const int expectedVertices[][3] = {{-1, -1}, {1, 2}, {2, 3},
                                            {4, 0},   {3, 4}, {0, 1}};
 
-        for (int res = 0; res < MAX_H3_RES; res += 2) {
+        for (int res = 0; res <= MAX_H3_RES; res += 2) {
             setH3Index(&pentagon, res, 24, 0);
             t_assertSuccess(H3_EXPORT(cellToBoundary)(pentagon, &boundary));
             t_assertSuccess(H3_EXPORT(originToDirectedEdges)(pentagon, edges));
@@ -359,17 +434,98 @@ SUITE(directedEdge) {
         }
     }
 
-    TEST(exactEdgeLength_invalid) {
+    TEST(directedEdgeToBoundary_invalid) {
+        H3Index sf;
+        t_assertSuccess(H3_EXPORT(latLngToCell)(&sfGeo, 9, &sf));
+        H3Index invalidEdge = sf;
+        H3_SET_MODE(invalidEdge, H3_DIRECTEDEDGE_MODE);
+        CellBoundary cb;
+        t_assert(H3_EXPORT(directedEdgeToBoundary)(invalidEdge, &cb) ==
+                     E_DIR_EDGE_INVALID,
+                 "directedEdgeToBoundary fails on invalid edge direction");
+
+        H3Index invalidEdge2 = sf;
+        H3_SET_RESERVED_BITS(invalidEdge2, 1);
+        H3_SET_BASE_CELL(invalidEdge2, NUM_BASE_CELLS + 1);
+        H3_SET_MODE(invalidEdge2, H3_DIRECTEDEDGE_MODE);
+        t_assert(
+            H3_EXPORT(directedEdgeToBoundary)(invalidEdge2, &cb) != E_SUCCESS,
+            "directedEdgeToBoundary fails on invalid edge indexing digit");
+    }
+
+    TEST(edgeLength_invalid) {
         double length;
         // Test that invalid inputs do not cause crashes.
-        t_assert(
-            H3_EXPORT(exactEdgeLengthRads)(0, &length) == E_DIR_EDGE_INVALID,
-            "Invalid edge has zero length");
+        t_assert(H3_EXPORT(edgeLengthRads)(0, &length) == E_DIR_EDGE_INVALID,
+                 "Invalid edge has zero length");
         LatLng zero = {0, 0};
         H3Index h3;
         t_assertSuccess(H3_EXPORT(latLngToCell)(&zero, 0, &h3));
-        t_assert(
-            H3_EXPORT(exactEdgeLengthRads)(h3, &length) == E_DIR_EDGE_INVALID,
-            "Non-edge (cell) has zero edge length");
+        t_assert(H3_EXPORT(edgeLengthRads)(h3, &length) == E_DIR_EDGE_INVALID,
+                 "Non-edge (cell) has zero edge length");
+    }
+
+    TEST(reverseDirectedEdge) {
+        H3Index sf, sf2;
+        H3Index ring[7];
+        t_assertSuccess(H3_EXPORT(latLngToCell)(&sfGeo, 9, &sf));
+        t_assertSuccess(H3_EXPORT(gridRing)(sf, 1, ring));
+        sf2 = ring[0];
+
+        H3Index edge, edgeOrigin, edgeDestination;
+        t_assertSuccess(H3_EXPORT(cellsToDirectedEdge)(sf, sf2, &edge));
+        t_assertSuccess(H3_EXPORT(getDirectedEdgeOrigin)(edge, &edgeOrigin));
+        t_assertSuccess(
+            H3_EXPORT(getDirectedEdgeDestination)(edge, &edgeDestination));
+
+        H3Index revEdge, revEdgeOrigin, revEdgeDestination;
+        t_assertSuccess(H3_EXPORT(reverseDirectedEdge)(edge, &revEdge));
+        t_assertSuccess(
+            H3_EXPORT(getDirectedEdgeOrigin)(revEdge, &revEdgeOrigin));
+        t_assertSuccess(H3_EXPORT(getDirectedEdgeDestination)(
+            revEdge, &revEdgeDestination));
+
+        t_assert((edgeOrigin == revEdgeDestination) &&
+                     (edgeDestination == revEdgeOrigin),
+                 "Reversed as expected.");
+
+        H3Index revRevEdge;
+        t_assertSuccess(H3_EXPORT(reverseDirectedEdge)(revEdge, &revRevEdge));
+        t_assert((revRevEdge == edge) && (revRevEdge != revEdge),
+                 "Reversing twice should recover original edge.");
+    }
+
+    TEST(reverseDirectedEdgeInvalid) {
+        H3Index sf, sf2;
+        H3Index ring[7];
+        t_assertSuccess(H3_EXPORT(latLngToCell)(&sfGeo, 9, &sf));
+        t_assertSuccess(H3_EXPORT(gridRing)(sf, 1, ring));
+        sf2 = ring[0];
+
+        H3Index edge;
+        t_assertSuccess(H3_EXPORT(cellsToDirectedEdge)(sf, sf2, &edge));
+        H3_SET_RESERVED_BITS(edge, INVALID_DIGIT);
+
+        t_assert(!H3_EXPORT(isValidDirectedEdge)(edge), "Not a valid edge");
+        H3Index out;
+        t_assert(H3_EXPORT(reverseDirectedEdge)(edge, &out) == E_FAILED,
+                 "Invalid directed edge fails");
+
+        t_assert(H3_EXPORT(reverseDirectedEdge)(H3_NULL, &out) != E_SUCCESS,
+                 "Invalid directed edge fails");
+
+        // Note that reverseDirectedEdge does not currently raise on *all*
+        // invalid indexes.
+        t_assertSuccess(H3_EXPORT(cellsToDirectedEdge)(sf, sf2, &edge));
+        edge = edge + 1;
+        t_assert(!H3_EXPORT(isValidDirectedEdge)(edge), "Not a valid edge");
+        t_assertSuccess(H3_EXPORT(reverseDirectedEdge)(edge, &out));
+    }
+
+    TEST(fuzz_fail) {
+        H3Index out;
+        H3Index index = 0x1001fff7ff2fbfffULL;
+        t_assert(H3_EXPORT(reverseDirectedEdge)(index, &out) == E_NOT_NEIGHBORS,
+                 "Fuzz test fail.");
     }
 }

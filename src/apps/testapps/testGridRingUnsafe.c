@@ -19,12 +19,19 @@
 #include "algos.h"
 #include "constants.h"
 #include "h3Index.h"
+#include "h3api.h"
 #include "test.h"
 
 SUITE(gridRingUnsafe) {
     LatLng sf = {0.659966917655, 2 * 3.14159 - 2.1364398519396};
     H3Index sfHex;
     t_assertSuccess(H3_EXPORT(latLngToCell)(&sf, 9, &sfHex));
+
+    TEST(negativeK) {
+        H3Index k0[] = {0};
+        t_assert(H3_EXPORT(gridRingUnsafe)(sfHex, -1, k0) == E_DOMAIN,
+                 "Should return an error when k is negative");
+    }
 
     TEST(identityGridRing) {
         H3Index k0[] = {0};
@@ -94,6 +101,26 @@ SUITE(gridRingUnsafe) {
                  "Should return an error when starting at a pentagon");
     }
 
+    TEST(invalidPentagon) {
+        H3Index index = 0x8009fffffffffff;
+        H3_SET_RESOLUTION(index, 2);
+        H3_SET_INDEX_DIGIT(index, 1, K_AXES_DIGIT);
+        H3_SET_INDEX_DIGIT(index, 2, CENTER_DIGIT);
+        H3Index kp2[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        t_assert(H3_EXPORT(gridRingUnsafe)(index, 2, kp2) == E_FAILED,
+                 "Should return an error when starting at a pentagon");
+    }
+
+    TEST(invalidPentagon2) {
+        H3Index index = 0x8009fffffffffff;
+        H3_SET_RESOLUTION(index, 2);
+        H3_SET_INDEX_DIGIT(index, 1, INVALID_DIGIT);
+        H3_SET_INDEX_DIGIT(index, 2, K_AXES_DIGIT);
+        H3Index kp2[] = {0, 0, 0, 0, 0, 0};
+        t_assert(H3_EXPORT(gridRingUnsafe)(index, 1, kp2) == E_CELL_INVALID,
+                 "Should return an error when starting at a pentagon");
+    }
+
     TEST(gridRingUnsafe_matches_gridDiskDistancesSafe) {
         for (int res = 0; res < 2; res++) {
             for (int i = 0; i < NUM_BASE_CELLS; i++) {
@@ -112,10 +139,14 @@ SUITE(gridRingUnsafe) {
                     }
 
                     for (int k = 0; k < 3; k++) {
-                        int ringSz = k != 0 ? 6 * k : 1;
-                        int kSz = H3_EXPORT(maxGridDiskSize)(k);
+                        int64_t kSz;
+                        t_assertSuccess(H3_EXPORT(maxGridDiskSize)(k, &kSz));
 
-                        H3Index *ring = calloc(ringSz, sizeof(H3Index));
+                        int64_t ringSize;
+                        t_assertSuccess(
+                            H3_EXPORT(maxGridRingSize)(k, &ringSize));
+
+                        H3Index *ring = calloc(ringSize, sizeof(H3Index));
                         H3Error failed =
                             H3_EXPORT(gridRingUnsafe)(children[j], k, ring);
 
@@ -129,11 +160,11 @@ SUITE(gridRingUnsafe) {
 
                             int found = 0;
                             int internalFound = 0;
-                            for (int iRing = 0; iRing < ringSz; iRing++) {
+                            for (int iRing = 0; iRing < ringSize; iRing++) {
                                 if (ring[iRing] != 0) {
                                     found++;
 
-                                    for (int iInternal = 0; iInternal < kSz;
+                                    for (int64_t iInternal = 0; iInternal < kSz;
                                          iInternal++) {
                                         if (internalNeighbors[iInternal] ==
                                             ring[iRing]) {

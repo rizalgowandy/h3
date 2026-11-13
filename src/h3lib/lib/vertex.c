@@ -25,6 +25,7 @@
 #include "algos.h"
 #include "baseCells.h"
 #include "faceijk.h"
+#include "h3Assert.h"
 #include "h3Index.h"
 #include "latLng.h"
 
@@ -47,12 +48,15 @@ static const PentagonDirectionFaces pentagonDirectionFaces[NUM_PENTAGONS] = {
 /**
  * Get the number of CCW rotations of the cell's vertex numbers
  * compared to the directional layout of its neighbors.
- * @return Number of CCW rotations for the cell
+ * @param out Number of CCW rotations for the cell
  */
-static int vertexRotations(H3Index cell) {
+static H3Error vertexRotations(H3Index cell, int *out) {
     // Get the face and other info for the origin
     FaceIJK fijk;
-    _h3ToFaceIjk(cell, &fijk);
+    H3Error err = _h3ToFaceIjk(cell, &fijk);
+    if (err) {
+        return err;
+    }
     int baseCell = H3_EXPORT(getBaseCellNumber)(cell);
     int cellLeadingDigit = _h3LeadingNonZeroDigit(cell);
 
@@ -64,13 +68,20 @@ static int vertexRotations(H3Index cell) {
 
     if (_isBaseCellPentagon(baseCell)) {
         // Find the appropriate direction-to-face mapping
-        PentagonDirectionFaces dirFaces;
-        // Excluding from branch coverage as we never hit the end condition
-        for (int p = 0; p < NUM_PENTAGONS; p++) {  // LCOV_EXCL_BR_LINE
+        // Zero-initialized to silence a spurious maybe-uninitialized warning.
+        PentagonDirectionFaces dirFaces = {0, {0}};
+        // We never hit the end condition
+        int p = 0;
+        // Don't use a for loop here, for coverage reasons.
+        while (ALWAYS(p < NUM_PENTAGONS)) {
             if (pentagonDirectionFaces[p].baseCell == baseCell) {
                 dirFaces = pentagonDirectionFaces[p];
                 break;
             }
+            p++;
+        }
+        if (NEVER(p == NUM_PENTAGONS)) {
+            return E_FAILED;
         }
 
         // additional CCW rotation for polar neighbors or IK neighbors
@@ -94,7 +105,8 @@ static int vertexRotations(H3Index cell) {
             ccwRot60 = (ccwRot60 + 1) % 6;
         }
     }
-    return ccwRot60;
+    *out = ccwRot60;
+    return E_SUCCESS;
 }
 
 /** @brief Hexagon direction to vertex number relationships (same face).
@@ -124,7 +136,11 @@ int vertexNumForDirection(const H3Index origin, const Direction direction) {
         return INVALID_VERTEX_NUM;
 
     // Determine the vertex rotations for this cell
-    int rotations = vertexRotations(origin);
+    int rotations;
+    H3Error err = vertexRotations(origin, &rotations);
+    if (err) {
+        return INVALID_VERTEX_NUM;
+    }
 
     // Find the appropriate vertex, rotating CCW if necessary
     if (isPent) {
@@ -163,7 +179,11 @@ Direction directionForVertexNum(const H3Index origin, const int vertexNum) {
         return INVALID_DIGIT;
 
     // Determine the vertex rotations for this cell
-    int rotations = vertexRotations(origin);
+    int rotations;
+    H3Error err = vertexRotations(origin, &rotations);
+    if (err) {
+        return INVALID_DIGIT;
+    }
 
     // Find the appropriate direction, rotating CW if necessary
     return isPent ? vertexNumToDirectionPent[(vertexNum + rotations) %
@@ -188,6 +208,7 @@ static const int revNeighborDirectionsHex[NUM_DIGITS] = {
  * H3_NULL if the vertex is invalid
  * @param cell    Cell to get the vertex for
  * @param vertexNum Number (index) of the vertex to calculate
+ * @param out Output: The vertex index
  */
 H3Error H3_EXPORT(cellToVertex)(H3Index cell, int vertexNum, H3Index *out) {
     int cellIsPentagon = H3_EXPORT(isPentagon)(cell);
@@ -209,11 +230,12 @@ H3Error H3_EXPORT(cellToVertex)(H3Index cell, int vertexNum, H3Index *out) {
     if (res == 0 || H3_GET_INDEX_DIGIT(cell, res) != CENTER_DIGIT) {
         // Get the left neighbor of the vertex, with its rotations
         Direction left = directionForVertexNum(cell, vertexNum);
-        // This case should be unreachable; invalid verts fail earlier
-        if (left == INVALID_DIGIT) return E_FAILED;  // LCOV_EXCL_LINE
+        if (left == INVALID_DIGIT) return E_FAILED;
         int lRotations = 0;
         H3Index leftNeighbor;
-        h3NeighborRotations(cell, left, &lRotations, &leftNeighbor);
+        H3Error leftNeighborError =
+            h3NeighborRotations(cell, left, &lRotations, &leftNeighbor);
+        if (leftNeighborError) return leftNeighborError;
         // Set to owner if lowest index
         if (leftNeighbor < owner) owner = leftNeighbor;
 
@@ -224,10 +246,12 @@ H3Error H3_EXPORT(cellToVertex)(H3Index cell, int vertexNum, H3Index *out) {
             Direction right = directionForVertexNum(
                 cell, (vertexNum - 1 + cellNumVerts) % cellNumVerts);
             // This case should be unreachable; invalid verts fail earlier
-            if (right == INVALID_DIGIT) return E_FAILED;  // LCOV_EXCL_LINE
+            if (NEVER(right == INVALID_DIGIT)) return E_FAILED;
             int rRotations = 0;
             H3Index rightNeighbor;
-            h3NeighborRotations(cell, right, &rRotations, &rightNeighbor);
+            H3Error rightNeighborError =
+                h3NeighborRotations(cell, right, &rRotations, &rightNeighbor);
+            if (rightNeighborError) return rightNeighborError;
             // Set to owner if lowest index
             if (rightNeighbor < owner) {
                 owner = rightNeighbor;

@@ -8,18 +8,28 @@ slug: /api/indexing
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-These functions are used for finding the H3 cell index containing coordinates, and for finding the center and boundary of H3 indexes.
+These functions are used for finding the H3 cell index containing coordinates,
+and for finding the center and boundary of H3 cells.
 
 ## latLngToCell
+
+Indexes the location at the specified resolution,
+providing the index of the cell containing the location.
+This buckets the geographic point into the H3 grid.
+For more information, see the
+[algorithm description](../core-library/latLngToCellDesc).
 
 <Tabs
   groupId="language"
   defaultValue="c"
   values={[
     {label: 'C', value: 'c'},
-    {label: 'Python', value: 'python'},
     {label: 'Java', value: 'java'},
     {label: 'JavaScript (Live)', value: 'javascript'},
+    {label: 'Python', value: 'python'},
+    {label: 'Go', value: 'go'},
+    {label: 'DuckDB', value: 'duckdb'},
+    {label: 'Shell', value: 'shell'},
   ]
 }>
 <TabItem value="c">
@@ -28,12 +38,7 @@ These functions are used for finding the H3 cell index containing coordinates, a
 H3Error latLngToCell(const LatLng *g, int res, H3Index *out);
 ```
 
-</TabItem>
-<TabItem value="python">
-
-```py
-h3.latlng_to_cell(lat, lng, resolution)
-```
+Returns 0 (`E_SUCCESS`) on success.
 
 </TabItem>
 <TabItem value="java">
@@ -60,22 +65,76 @@ function example() {
 ```
 
 </TabItem>
+<TabItem value="python">
+
+```py
+h3.latlng_to_cell(lat, lng, resolution)
+```
+
+</TabItem>
+<TabItem value="go">
+
+```go
+h3.NewLatLng(lat, lng).Cell(resolution)
+```
+
+</TabItem>
+<TabItem value="duckdb">
+
+```sql
+h3_latlng_to_cell(lat, lng, resolution)
+```
+
+```sql
+h3_latlng_to_cell_string(lat, lng, resolution)
+```
+
+</TabItem>
+<TabItem value="shell">
+
+```sh
+$ h3 latLngToCell --help
+h3: Convert degrees latitude/longitude coordinate to an H3 cell
+H3 4.1.0
+
+	latLngToCell	Convert degrees latitude/longitude coordinate to an H3 cell
+	-h, --help	Show this help message.
+	-r, --resolution <res>	Required. Resolution, 0-15 inclusive.
+	--lat, --latitude <lat>	Required. Latitude in degrees.
+	--lng, --longitude <lng>	Required. Longitude in degrees.
+	-f, --format <FMT>	'json' for "CELL"\n, 'newline' for CELL\n (Default: json)
+```
+
+```bash
+$ h3 latLngToCell --lat 45 --lng 40 -r 2
+"822d57fffffffff"
+```
+
+</TabItem>
 </Tabs>
 
-Indexes the location at the specified resolution, returning the index of the cell containing the location.
-
-Returns 0 (`E_SUCCESS`) on success.
-
 ## cellToLatLng
+
+Finds the center of the cell in grid space. See the
+[algorithm description](../core-library/cellToLatLngDesc) for
+more information.
+
+The center will drift versus the centroid
+of the cell on Earth due to distortion from the gnomonic
+projection within the icosahedron face it resides on and its
+distance from the center of the icosahedron face.
 
 <Tabs
   groupId="language"
   defaultValue="c"
   values={[
     {label: 'C', value: 'c'},
-    {label: 'Python', value: 'python'},
     {label: 'Java', value: 'java'},
     {label: 'JavaScript (Live)', value: 'javascript'},
+    {label: 'Python', value: 'python'},
+    {label: 'Go', value: 'go'},
+    {label: 'DuckDB', value: 'duckdb'},
+    {label: 'Shell', value: 'shell'},
   ]
 }>
 <TabItem value="c">
@@ -84,12 +143,7 @@ Returns 0 (`E_SUCCESS`) on success.
 H3Error cellToLatLng(H3Index cell, LatLng *g);
 ```
 
-</TabItem>
-<TabItem value="python">
-
-```py
-h3.cell_to_latlng(cell)
-```
+Returns 0 (`E_SUCCESS`) on success.
 
 </TabItem>
 <TabItem value="java">
@@ -114,22 +168,72 @@ function example() {
 ```
 
 </TabItem>
+<TabItem value="python">
+
+```py
+h3.cell_to_latlng(cell)
+```
+
+</TabItem>
+<TabItem value="go">
+
+```go
+h3.CellToLatLng(cell)
+```
+
+</TabItem>
+<TabItem value="duckdb">
+
+```sql
+h3_cell_to_latlng(cell)
+```
+```sql
+h3_cell_to_lat(cell)
+```
+```sql
+h3_cell_to_lng(cell)
+```
+
+</TabItem>
+<TabItem value="shell">
+
+```sh
+$ h3 cellToLatLng --help
+h3: Convert an H3Cell to a coordinate
+H3 4.1.0
+
+	cellToLatLng	Convert an H3Cell to a coordinate
+	-h, --help	Show this help message.
+	-c, --cell <index>	Required. H3 Cell
+	-f, --format <FMT>	'json' for [lat, lng], 'wkt' for a WKT POINT, 'newline' for lat\nlng\n (Default: json)
+```
+
+```bash
+$ h3 cellToLatLng -c 85283473fffffff
+[37.3457933754, -121.9763759726]
+```
+
+</TabItem>
 </Tabs>
 
-Finds the centroid of the cell.
-
-Returns 0 (`E_SUCCESS`) on success.
 
 ## cellToBoundary
+
+Finds the boundary of the cell.
+For more information, see the
+[algorithm description](../core-library/cellToBoundaryDesc).
 
 <Tabs
   groupId="language"
   defaultValue="c"
   values={[
     {label: 'C', value: 'c'},
-    {label: 'Python', value: 'python'},
     {label: 'Java', value: 'java'},
     {label: 'JavaScript (Live)', value: 'javascript'},
+    {label: 'Python', value: 'python'},
+    {label: 'Go', value: 'go'},
+    {label: 'DuckDB', value: 'duckdb'},
+    {label: 'Shell', value: 'shell'},
   ]
 }>
 <TabItem value="c">
@@ -138,12 +242,7 @@ Returns 0 (`E_SUCCESS`) on success.
 H3Error cellToBoundary(H3Index cell, CellBoundary *bndry);
 ```
 
-</TabItem>
-<TabItem value="python">
-
-```py
-h3.cell_to_boundary(cell, geo_json=False)
-```
+Returns 0 (`E_SUCCESS`) on success.
 
 </TabItem>
 <TabItem value="java">
@@ -168,8 +267,51 @@ function example() {
 ```
 
 </TabItem>
+<TabItem value="python">
+
+```py
+h3.cell_to_boundary(cell)
+```
+
+Returns tuple of lat/lng tuples.
+For GeoJSON compatibility (lng/lat order), see the
+[`h3-py` docs](https://uber.github.io/h3-py/api_quick.html#polygon-interface).
+
+</TabItem>
+<TabItem value="go">
+
+```go
+cell.Boundary()
+```
+
+</TabItem>
+<TabItem value="duckdb">
+
+```sql
+h3_cell_to_boundary_wkt(cell)
+```
+```sql
+h3_cell_to_boundary_wkb(cell)
+```
+
+</TabItem>
+<TabItem value="shell">
+
+```sh
+$ h3 cellToBoundary --help
+h3: Convert an H3 cell to a polygon defining its boundary
+H3 4.1.0
+
+	cellToBoundary	Convert an H3 cell to a polygon defining its boundary
+	-h, --help	Show this help message.
+	-c, --cell <index>	Required. H3 Cell
+	-f, --format <FMT>	'json' for [[lat, lng], ...], 'wkt' for a WKT POLYGON, 'newline' for lat\nlng\n... (Default: json)
+```
+
+```bash
+$ h3 cellToBoundary -c 85283473fffffff
+[[37.2713558667, -121.9150803271], [37.3539264509, -121.8622232890], [37.4283411861, -121.9235499963], [37.4201286777, -122.0377349643], [37.3375560844, -122.0904289290], [37.2631979746, -122.0291013092]]
+```
+
+</TabItem>
 </Tabs>
-
-Finds the boundary of the cell.
-
-Returns 0 (`E_SUCCESS`) on success.

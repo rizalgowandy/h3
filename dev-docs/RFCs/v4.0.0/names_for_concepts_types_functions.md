@@ -213,6 +213,16 @@ We may expose them in the future if a need becomes clear.
 | *DNE*        | `gridRingSafe`   | `gridDiskDistancesSafe`          |
 | *DNE*        | `gridRing`       | `gridRingUnsafe`, `gridRingSafe` |
 
+#### Local IJ
+
+|         3.x name          |   4.0.0 name    |
+|---------------------------|-----------------|
+| `experimentalLocalIjToH3` | `localIjToCell` |
+| `experimentalH3ToLocalIj` | `cellToLocalIj` |
+
+**Note**: The term *experimental* is dropped from the names because the functions
+have been in the H3 API for a significant period of time.
+
 ### H3 Edge Types
 
 Instead of `UnidirectionalEdge`, use the term `DirectedEdge`.
@@ -233,16 +243,22 @@ For a future undirected edge mode, use the term `Edge`.
 
 ### Area/Length Functions
 
-|  Current name  |        Proposed name        |
-|----------------|-----------------------------|
-| `hexAreaKm2`   | `getHexagonAreaAvgKm2`      |
-| `hexAreaM2`    | `getHexagonAreaAvgM2`       |
-| `edgeLengthKm` | `getHexagonEdgeLengthAvgKm` |
-| `edgeLengthM`  | `getHexagonEdgeLengthAvgM`  |
-| *DNE*          | `getPentagonAreaAvg*`       |
-| *DNE*          | `getPentagonEdgeLengthAvg*` |
-| *DNE*          | `cellAreaKm2`               |
-| *DNE*          | `cellAreaM2`                |
+|    3.x name.          |         4.0.0 name          |
+|-----------------------|-----------------------------|
+| `hexAreaKm2`          | `getHexagonAreaAvgKm2`      |
+| `hexAreaM2`           | `getHexagonAreaAvgM2`       |
+| `edgeLengthKm`        | `getHexagonEdgeLengthAvgKm` |
+| `edgeLengthM`         | `getHexagonEdgeLengthAvgM`  |
+| *DNE*                 | `getPentagonAreaAvg*`       |
+| *DNE*                 | `getPentagonEdgeLengthAvg*` |
+| *DNE*                 | `cellAreaKm2`               |
+| *DNE*                 | `cellAreaM2`                |
+| `pointDistKm`         | `greatCircleDistanceKm`     |
+| `pointDistM`          | `greatCircleDistanceM`      |
+| `pointDistRads`       | `greatCircleDistanceRads`   |
+| `exactEdgeLengthRads` | `edgeLengthRads`            |
+| `exactEdgeLengthKm`   | `edgeLengthKm`              |
+| `exactEdgeLengthM`    | `edgeLengthM`               |
 
 **Note**: `cellAreaKm2` and `cellAreaM2` would return the actual area of
 the passed-in cell.
@@ -271,10 +287,12 @@ discussion requiring benchmarking, so we will defer that to a
 
 ### Functions
 
-|            Current name           |      Proposed name       |         Notes          |
-|-----------------------------------|--------------------------|------------------------|
-| `h3ToGeoBoundary`                 | `cellToBoundary`         | returns `CellBoundary` |
-| *DNE*                             | `cellToLoop`             | returns `GeoLoop`      |
-| *DNE*                             | `loopToBoundary`         |                        |
-| *DNE*                             | `boundaryToLoop`         |                        |
-| `getH3UnidirectionalEdgeBoundary` | `directedEdgeToBoundary` | returns `CellBoundary` |
+|              3.x name             |       Proposed name         |         Notes              |
+|-----------------------------------|-----------------------------|----------------------------|
+| `h3ToGeoBoundary`                 | `cellToBoundary`            | returns `CellBoundary`     |
+| *DNE*                             | `cellToLoop`                | returns `GeoLoop`          |
+| *DNE*                             | `loopToBoundary`            |                            |
+| *DNE*                             | `boundaryToLoop`            |                            |
+| `getH3UnidirectionalEdgeBoundary` | `directedEdgeToBoundary`    | returns `CellBoundary`     |
+| `h3SetToLinkedGeo`                | `cellsToLinkedMultiPolygon` | returns `LinkedGeoPolygon` |
+| `h3SetToToMultiPolygon`           | `cellsToMultiPolygon`       | bindings only              |

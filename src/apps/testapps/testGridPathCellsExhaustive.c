@@ -48,11 +48,15 @@ static void gridPathCells_assertions(H3Index start, H3Index end) {
 
     for (int i = 1; i < sz; i++) {
         t_assert(H3_EXPORT(isValidCell)(line[i]), "index is valid");
-        t_assert(H3_EXPORT(areNeighborCells)(line[i], line[i - 1]),
-                 "index is a neighbor of the previous index");
+        int isNeighbor;
+        t_assertSuccess(
+            H3_EXPORT(areNeighborCells)(line[i], line[i - 1], &isNeighbor));
+        t_assert(isNeighbor, "index is a neighbor of the previous index");
         if (i > 1) {
+            t_assertSuccess(
+                H3_EXPORT(areNeighborCells)(line[i], line[i - 2], &isNeighbor));
             t_assert(
-                !H3_EXPORT(areNeighborCells)(line[i], line[i - 2]),
+                !isNeighbor,
                 "index is not a neighbor of the index before the previous");
         }
     }
@@ -81,7 +85,8 @@ static void gridPathCells_gridDisk_assertions(H3Index h3) {
     t_assert(r <= 5, "resolution supported by test function (gridDisk)");
     int maxK = MAX_DISTANCES[r];
 
-    int sz = H3_EXPORT(maxGridDiskSize)(maxK);
+    int64_t sz;
+    t_assertSuccess(H3_EXPORT(maxGridDiskSize)(maxK, &sz));
 
     if (H3_EXPORT(isPentagon)(h3)) {
         return;
@@ -107,7 +112,7 @@ static void gridPathCells_gridDisk_assertions(H3Index h3) {
     free(neighbors);
 }
 
-SUITE(gridPathCells) {
+SUITE(gridPathCellsExhaustive) {
     TEST(gridPathCells_gridDisk) {
         iterateAllIndexesAtRes(0, gridPathCells_gridDisk_assertions);
         iterateAllIndexesAtRes(1, gridPathCells_gridDisk_assertions);

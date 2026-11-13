@@ -37,6 +37,16 @@ module.exports = {
           "library/migration-3.x/functions",
         ],
       },
+      {
+        type: "category",
+        label: "Index structure",
+        items: [
+          "library/index/h3Indexing",
+          "library/index/cell",
+          "library/index/directededge",
+          "library/index/vertex",
+        ],
+      },
       "library/terminology",
       "library/errors",
       "library/restable",
@@ -48,6 +58,7 @@ module.exports = {
       "api/hierarchy",
       "api/regions",
       "api/uniedge",
+      "api/vertex",
       "api/misc",
     ],
     Community: [
@@ -58,12 +69,13 @@ module.exports = {
     ],
     "H3 Internals": [
       "core-library/overview",
-      "core-library/h3Indexing",
       "core-library/coordsystems",
       "core-library/creating-bindings",
+      "core-library/filters",
+      "core-library/compilation-options",
+      "core-library/testing",
       "core-library/custom-alloc",
       "core-library/usage",
-      "core-library/filters",
       {
         type: "category",
         label: "Algorithms",

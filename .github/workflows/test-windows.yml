@@ -8,7 +8,7 @@ on:
 
 jobs:
   tests:
-    name: Test Compile ${{ matrix.config }} ${{ matrix.arch }}
+    name: ${{ matrix.config }} ${{ matrix.arch }}
     runs-on: windows-latest
     env:
       CC: cl.exe
@@ -20,11 +20,13 @@ jobs:
         arch: [Win32, x64]
 
     steps:
-      - uses: actions/checkout@v2.1.1
+      - uses: actions/checkout@v6
+
+      - uses: tlylt/install-graphviz@v1.0.0
 
       - name: Configure build
         shell: cmd
-        run: cmake -Bbuild -A ${{ matrix.arch }} -DWARNINGS_AS_ERRORS=ON -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=ON .
+        run: cmake -Bbuild -A ${{ matrix.arch }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type}} -DWARNINGS_AS_ERRORS=ON -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=ON .
 
       - name: Build
         working-directory: build
@@ -44,7 +46,7 @@ jobs:
         run: ctest -C ${{ matrix.config }}
 
   dllcompile:
-    name: Test DLL Compile ${{ matrix.config }} ${{ matrix.arch }}
+    name: DLL ${{ matrix.config }} ${{ matrix.arch }}
     runs-on: windows-latest
     env:
       CC: cl.exe
@@ -56,7 +58,9 @@ jobs:
         arch: [Win32, x64]
 
     steps:
-      - uses: actions/checkout@v2.1.1
+      - uses: actions/checkout@v6
+
+      - uses: tlylt/install-graphviz@v1.0.0
 
       - name: Configure build
         shell: cmd

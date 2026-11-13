@@ -8,14 +8,19 @@ on:
 
 jobs:
   tests:
-    name: Test Compile ${{ matrix.compiler }}
-    runs-on: macos-latest
+    name: ${{ matrix.build_type }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-15, macos-15-intel, macos-latest]
+        build_type: ["Debug", "Release"]
 
     steps:
-      - uses: actions/checkout@v2.1.1
+      - uses: actions/checkout@v6
 
       - name: Configure build
-        run: cmake -Bbuild -DWARNINGS_AS_ERRORS=ON .
+        run: cmake -Bbuild -DCMAKE_BUILD_TYPE=${{ matrix.build_type}} -DWARNINGS_AS_ERRORS=ON .
 
       - name: Build
         working-directory: build
@@ -29,6 +34,8 @@ jobs:
 
       - name: Tests
         working-directory: build
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
         run: |
           make test
           sudo make install
@@ -37,6 +44,6 @@ jobs:
         run: |
           mkdir build/examples
           cd build/examples
-          cmake ../../examples
+          cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type}} ../../examples
           make
           make test

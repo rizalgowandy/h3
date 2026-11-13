@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.5..4.0)
 
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 11)
 
-project(h3examples)
+project(h3examples
+    LANGUAGES C)
 
 find_package(h3 CONFIG REQUIRED)
 
@@ -29,11 +30,11 @@ set(EXAMPLES
     edge)
 
 set(EXECUTABLE_OUTPUT_PATH bin)
-link_libraries(h3::h3)
 
 # Build each example
 foreach(name ${EXAMPLES})
     add_executable(${name} "${name}.c")
+    target_link_libraries(${name} PRIVATE h3::h3)
 endforeach()
 
 # Testing the examples

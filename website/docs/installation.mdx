@@ -3,10 +3,9 @@ id: installation
 title: Installation
 sidebar_label: Installation
 slug: /installation
+# when updating this file with a new version number, do a search and replace
+# for all instances.
 ---
-
-<!-- when updating this file with a new version number, do a search and replace
-for all instances. -->
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
@@ -23,6 +22,7 @@ We recommend using prebuilt [bindings](/docs/community/bindings) if they are ava
     {label: 'Java', value: 'java'},
     {label: 'JavaScript', value: 'javascript'},
     {label: 'Homebrew', value: 'brew'},
+    {label: 'DuckDB', value: 'duckdb'},
   ]
 }>
 <TabItem value="python">
@@ -49,14 +49,14 @@ Using Maven, add the following to your `pom.xml` file:
 <dependency>
     <groupId>com.uber</groupId>
     <artifactId>h3</artifactId>
-    <version>3.7.1</version>
+    <version>4.3.0</version>
 </dependency>
 ```
 
 Using Gradle, add the following to your build script:
 
 ```gradle
-compile("com.uber:h3:3.7.1")
+compile("com.uber:h3:4.3.0")
 ```
 
 </TabItem>
@@ -86,6 +86,21 @@ brew install h3
 This installs the C library and filter applications.
 
 </TabItem>
+<TabItem value="duckdb">
+
+Using DuckDB, run this to install the [H3 extension](https://duckdb.org/community_extensions/extensions/h3.html):
+
+```sql
+INSTALL h3 FROM community;
+```
+
+Once installed, the extension can be loaded with:
+
+```sql
+LOAD h3;
+```
+
+</TabItem>
 </Tabs>
 
 ## Install from source
@@ -103,7 +118,7 @@ Note: You must install build dependencies for your operating system.
 
 <Tabs
   groupId="os"
-  defaultValue="python"
+  defaultValue="macos"
   values={[
     {label: 'mac OS', value: 'macos'},
     {label: 'alpine', value: 'alpine'},
@@ -144,20 +159,13 @@ sudo apt install clang-format cmake-curses-gui lcov doxygen
 </TabItem>
 <TabItem value="windows">
 
-You need to install CMake and Visual Studio, including the Visual C++ compiler.
+You need to install CMake and Visual Studio, including the Visual C++ compiler. We recommend Visual Studio 2017 or later.
 
 :::info
 
 You can build H3 as a shared library (DLL) on Windows, but the test suite does not support this configuration because the tests use functions internal to the DLL, and they are not exposed for testing.
 
 :::
-
-```bash
-# Installing the bare build requirements
-sudo apt install cmake make gcc libtool
-# Installing useful tools for development
-sudo apt install clang-format cmake-curses-gui lcov doxygen
-```
 
 </TabItem>
 <TabItem value="freebsd">
@@ -175,7 +183,7 @@ Next, build the library:
 ```bash
 mkdir build
 cd build
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=Release ..
 cmake --build .
 ```
 

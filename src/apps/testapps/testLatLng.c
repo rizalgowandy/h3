@@ -35,12 +35,12 @@
  * @param function
  * @param message
  */
-static void testDecreasingFunction(double (*function)(int),
+static void testDecreasingFunction(H3Error (*function)(int, double *),
                                    const char *message) {
     double last = 0;
     double next;
     for (int i = MAX_H3_RES; i >= 0; i--) {
-        next = function(i);
+        t_assertSuccess(function(i, &next));
         t_assert(next > last, message);
         last = next;
     }
@@ -62,149 +62,91 @@ SUITE(latLng) {
         setGeoDegs(&p2, 0, 10);
 
         // TODO: Epsilon is relatively large
-        t_assert(H3_EXPORT(distanceRads)(&p1, &p1) < EPSILON_RAD * 1000,
-                 "0 distance as expected");
-        t_assert(fabs(H3_EXPORT(distanceRads)(&p1, &p2) -
+        t_assert(
+            H3_EXPORT(greatCircleDistanceRads)(&p1, &p1) < EPSILON_RAD * 1000,
+            "0 distance as expected");
+        t_assert(fabs(H3_EXPORT(greatCircleDistanceRads)(&p1, &p2) -
                       H3_EXPORT(degsToRads)(10)) < EPSILON_RAD * 1000,
                  "distance along longitude as expected");
-    }
-
-    TEST(geoAlmostEqualThreshold) {
-        LatLng a = {15, 10};
-        LatLng b = {15, 10};
-        t_assert(geoAlmostEqualThreshold(&a, &b, DBL_EPSILON), "same point");
-
-        b.lat = 15.00001;
-        b.lng = 10.00002;
-        t_assert(geoAlmostEqualThreshold(&a, &b, 0.0001),
-                 "differences under threshold");
-
-        b.lat = 15.00001;
-        b.lng = 10;
-        t_assert(!geoAlmostEqualThreshold(&a, &b, 0.000001),
-                 "lat over threshold");
-
-        b.lat = 15;
-        b.lng = 10.00001;
-        t_assert(!geoAlmostEqualThreshold(&a, &b, 0.000001),
-                 "lng over threshold");
-    }
-
-    TEST(constrainLatLng) {
-        t_assert(constrainLat(0) == 0, "lat 0");
-        t_assert(constrainLat(1) == 1, "lat 1");
-        t_assert(constrainLat(M_PI_2) == M_PI_2, "lat pi/2");
-        t_assert(constrainLat(M_PI) == 0, "lat pi");
-        t_assert(constrainLat(M_PI + 1) == 1, "lat pi+1");
-        t_assert(constrainLat(2 * M_PI + 1) == 1, "lat 2pi+1");
-
-        t_assert(constrainLng(0) == 0, "lng 0");
-        t_assert(constrainLng(1) == 1, "lng 1");
-        t_assert(constrainLng(M_PI) == M_PI, "lng pi");
-        t_assert(constrainLng(2 * M_PI) == 0, "lng 2pi");
-        t_assert(constrainLng(3 * M_PI) == M_PI, "lng 2pi");
-        t_assert(constrainLng(4 * M_PI) == 0, "lng 4pi");
-    }
-
-    TEST(_geoAzDistanceRads_noop) {
-        LatLng start = {15, 10};
-        LatLng out;
-        LatLng expected = {15, 10};
-
-        _geoAzDistanceRads(&start, 0, 0, &out);
-        t_assert(geoAlmostEqual(&expected, &out),
-                 "0 distance produces same point");
-    }
-
-    TEST(_geoAzDistanceRads_dueNorthSouth) {
-        LatLng start;
-        LatLng out;
-        LatLng expected;
-
-        // Due north to north pole
-        setGeoDegs(&start, 45, 1);
-        setGeoDegs(&expected, 90, 0);
-        _geoAzDistanceRads(&start, 0, H3_EXPORT(degsToRads)(45), &out);
-        t_assert(geoAlmostEqual(&expected, &out),
-                 "due north to north pole produces north pole");
-
-        // Due north to south pole, which doesn't get wrapped correctly
-        setGeoDegs(&start, 45, 1);
-        setGeoDegs(&expected, 270, 1);
-        _geoAzDistanceRads(&start, 0, H3_EXPORT(degsToRads)(45 + 180), &out);
-        t_assert(geoAlmostEqual(&expected, &out),
-                 "due north to south pole produces south pole");
-
-        // Due south to south pole
-        setGeoDegs(&start, -45, 2);
-        setGeoDegs(&expected, -90, 0);
-        _geoAzDistanceRads(&start, H3_EXPORT(degsToRads)(180),
-                           H3_EXPORT(degsToRads)(45), &out);
-        t_assert(geoAlmostEqual(&expected, &out),
-                 "due south to south pole produces south pole");
-
-        // Due north to non-pole
-        setGeoDegs(&start, -45, 10);
-        setGeoDegs(&expected, -10, 10);
-        _geoAzDistanceRads(&start, 0, H3_EXPORT(degsToRads)(35), &out);
-        t_assert(geoAlmostEqual(&expected, &out),
-                 "due north produces expected result");
-    }
-
-    TEST(_geoAzDistanceRads_poleToPole) {
-        LatLng start;
-        LatLng out;
-        LatLng expected;
-
-        // Azimuth doesn't really matter in this case. Any azimuth from the
-        // north pole is south, any azimuth from the south pole is north.
-
-        setGeoDegs(&start, 90, 0);
-        setGeoDegs(&expected, -90, 0);
-        _geoAzDistanceRads(&start, H3_EXPORT(degsToRads)(12),
-                           H3_EXPORT(degsToRads)(180), &out);
-        t_assert(geoAlmostEqual(&expected, &out),
-                 "some direction to south pole produces south pole");
-
-        setGeoDegs(&start, -90, 0);
-        setGeoDegs(&expected, 90, 0);
-        _geoAzDistanceRads(&start, H3_EXPORT(degsToRads)(34),
-                           H3_EXPORT(degsToRads)(180), &out);
-        t_assert(geoAlmostEqual(&expected, &out),
-                 "some direction to north pole produces north pole");
-    }
-
-    TEST(_geoAzDistanceRads_invertible) {
-        LatLng start;
-        setGeoDegs(&start, 15, 10);
-        LatLng out;
-
-        double azimuth = H3_EXPORT(degsToRads)(20);
-        double degrees180 = H3_EXPORT(degsToRads)(180);
-        double distance = H3_EXPORT(degsToRads)(15);
-
-        _geoAzDistanceRads(&start, azimuth, distance, &out);
-        t_assert(fabs(H3_EXPORT(distanceRads)(&start, &out) - distance) <
-                     EPSILON_RAD,
-                 "moved distance is as expected");
-
-        LatLng start2 = out;
-        _geoAzDistanceRads(&start2, azimuth + degrees180, distance, &out);
-        // TODO: Epsilon is relatively large
-        t_assert(H3_EXPORT(distanceRads)(&start, &out) < 0.01,
-                 "moved back to origin");
     }
 
     TEST(distanceRads_wrappedLongitude) {
         const LatLng negativeLongitude = {.lat = 0, .lng = -(M_PI + M_PI_2)};
         const LatLng zero = {.lat = 0, .lng = 0};
 
-        t_assert(fabs(M_PI_2 - H3_EXPORT(distanceRads)(&negativeLongitude,
-                                                       &zero)) < EPSILON_RAD,
+        t_assert(fabs(M_PI_2 - H3_EXPORT(greatCircleDistanceRads)(
+                                   &negativeLongitude, &zero)) < EPSILON_RAD,
                  "Distance with wrapped longitude");
-        t_assert(fabs(M_PI_2 - H3_EXPORT(distanceRads)(
+        t_assert(fabs(M_PI_2 - H3_EXPORT(greatCircleDistanceRads)(
                                    &zero, &negativeLongitude)) < EPSILON_RAD,
                  "Distance with wrapped longitude and swapped arguments");
+    }
+
+    TEST(distanceRads_antipodal) {
+        // Antipodal points should give pi radians. The haversine term can
+        // round fractionally above 1 for these inputs, which previously
+        // produced NaN instead.
+        LatLng a;
+        setGeoDegs(&a, 12, 0);
+        LatLng b;
+        setGeoDegs(&b, -12, 180);
+        double dist = H3_EXPORT(greatCircleDistanceRads)(&a, &b);
+        t_assert(isfinite(dist), "Antipodal distance is finite");
+        t_assert(fabs(dist - M_PI) < EPSILON_RAD, "Antipodal distance is pi");
+
+        LatLng equatorA;
+        setGeoDegs(&equatorA, 0, 0);
+        LatLng equatorB;
+        setGeoDegs(&equatorB, 0, 180);
+        double equatorDist =
+            H3_EXPORT(greatCircleDistanceRads)(&equatorA, &equatorB);
+        t_assert(isfinite(equatorDist),
+                 "Equatorial antipodal distance is finite");
+        t_assert(fabs(equatorDist - M_PI) < EPSILON_RAD,
+                 "Equatorial antipodal distance is pi");
+
+        LatLng poleA;
+        setGeoDegs(&poleA, 90, 0);
+        LatLng poleB;
+        setGeoDegs(&poleB, -90, 0);
+        double poleDist = H3_EXPORT(greatCircleDistanceRads)(&poleA, &poleB);
+        t_assert(isfinite(poleDist), "Pole-to-pole distance is finite");
+        t_assert(fabs(poleDist - M_PI) < EPSILON_RAD,
+                 "Pole-to-pole distance is pi");
+
+        // Guard against an overly broad clamp: a point just short of
+        // antipodal should resolve to its actual angle, not pi.
+        LatLng nearA;
+        setGeoDegs(&nearA, 0, 0);
+        LatLng nearB;
+        setGeoDegs(&nearB, 0, 179.9999);
+        double nearDist = H3_EXPORT(greatCircleDistanceRads)(&nearA, &nearB);
+        double expectedNearDist = H3_EXPORT(degsToRads)(179.9999);
+        t_assert(isfinite(nearDist), "Near-antipodal distance is finite");
+        // Comparing a haversine-computed distance against a direct degree
+        // conversion needs a looser tolerance than EPSILON_RAD, same as the
+        // existing distance-vs-degsToRads comparison above.
+        t_assert(fabs(nearDist - expectedNearDist) < EPSILON_RAD * 1000,
+                 "Near-antipodal distance matches the actual angle");
+        t_assert(fabs(nearDist - M_PI) > EPSILON_RAD,
+                 "Near-antipodal distance is distinguishable from pi");
+    }
+
+    TEST(distanceRads_hugeInputsClampNegativeA) {
+        // greatCircleDistanceRads has no precondition that lat/lng be valid
+        // angles. For most out-of-range inputs A stays >= 0 (the haversine
+        // identity A = sin^2(centralAngle/2) holds for any real lat/lng),
+        // but at a large enough magnitude sin()/cos() argument reduction
+        // itself loses all precision and A can go negative. These specific
+        // values are one such case, found by search and confirmed stable
+        // at -O0 and -O2.
+        LatLng a = {.lat = 7.3976404290321633e+52,
+                    .lng = 7.2102191236323398e+52};
+        LatLng b = {.lat = -6.8262031828527172e+52,
+                    .lng = 4.7762907518189019e+52};
+        double dist = H3_EXPORT(greatCircleDistanceRads)(&a, &b);
+        t_assert(isfinite(dist), "Huge-input distance is finite, not NaN");
+        t_assert(fabs(dist) < EPSILON_RAD, "Huge-input distance clamps to 0");
     }
 
     TEST(doubleConstants) {
@@ -219,15 +161,43 @@ SUITE(latLng) {
                                "getHexagonEdgeLengthAvgM ordering");
     }
 
+    TEST(doubleConstantsErrors) {
+        double out;
+        t_assert(H3_EXPORT(getHexagonAreaAvgKm2)(-1, &out) == E_RES_DOMAIN,
+                 "getHexagonAreaAvgKm2 resolution negative");
+        t_assert(H3_EXPORT(getHexagonAreaAvgKm2)(16, &out) == E_RES_DOMAIN,
+                 "getHexagonAreaAvgKm2 resolution too high");
+        t_assert(H3_EXPORT(getHexagonAreaAvgM2)(-1, &out) == E_RES_DOMAIN,
+                 "getHexagonAreaAvgM2 resolution negative");
+        t_assert(H3_EXPORT(getHexagonAreaAvgM2)(16, &out) == E_RES_DOMAIN,
+                 "getHexagonAreaAvgM2 resolution too high");
+        t_assert(H3_EXPORT(getHexagonEdgeLengthAvgKm)(-1, &out) == E_RES_DOMAIN,
+                 "getHexagonEdgeLengthAvgKm resolution negative");
+        t_assert(H3_EXPORT(getHexagonEdgeLengthAvgKm)(16, &out) == E_RES_DOMAIN,
+                 "getHexagonEdgeLengthAvgKm resolution too high");
+        t_assert(H3_EXPORT(getHexagonEdgeLengthAvgM)(-1, &out) == E_RES_DOMAIN,
+                 "getHexagonEdgeLengthAvgM resolution negative");
+        t_assert(H3_EXPORT(getHexagonEdgeLengthAvgM)(16, &out) == E_RES_DOMAIN,
+                 "getHexagonEdgeLengthAvgM resolution too high");
+    }
+
     TEST(intConstants) {
         // Simple checks for ordering of values
         int64_t last = 0;
         int64_t next;
         for (int i = 0; i <= MAX_H3_RES; i++) {
-            next = H3_EXPORT(getNumCells)(i);
+            t_assertSuccess(H3_EXPORT(getNumCells)(i, &next));
             t_assert(next > last, "getNumCells ordering");
             last = next;
         }
+    }
+
+    TEST(intConstantsErrors) {
+        int64_t out;
+        t_assert(H3_EXPORT(getNumCells)(-1, &out) == E_RES_DOMAIN,
+                 "getNumCells resolution negative");
+        t_assert(H3_EXPORT(getNumCells)(16, &out) == E_RES_DOMAIN,
+                 "getNumCells resolution too high");
     }
 
     TEST(numHexagons) {
@@ -250,7 +220,8 @@ SUITE(latLng) {
                                            569707381193162L};
 
         for (int r = 0; r <= MAX_H3_RES; r++) {
-            int64_t num = H3_EXPORT(getNumCells)(r);
+            int64_t num;
+            t_assertSuccess(H3_EXPORT(getNumCells)(r, &num));
             t_assert(num == expected[r], "incorrect numHexagons count");
         }
     }

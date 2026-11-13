@@ -1,0 +1,362 @@
+// Contains code adapted from https://observablehq.com/@nrabinowitz/h3-index-inspector under the ISC license
+
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Map } from "react-map-gl/mapbox";
+import DeckGL from "@deck.gl/react";
+import { H3HexagonLayer } from "@deck.gl/geo-layers";
+import { WebMercatorViewport, FlyToInterpolator, MapView } from "@deck.gl/core";
+import { cellToBoundary, directedEdgeToBoundary, vertexToLatLng } from "h3-js";
+import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
+import { MOBILE_CUTOFF_WINDOW_WIDTH } from "../common";
+import { useHex } from "./useHex";
+import { GeoJsonLayer, PathLayer, ScatterplotLayer } from "deck.gl";
+import { PathStyleExtension } from "@deck.gl/extensions";
+import { useColorMode } from "@docusaurus/theme-common";
+
+const INITIAL_VIEW_STATE = {
+  longitude: -74.012,
+  latitude: 40.705,
+  zoom: 2.5,
+  pitch: 0,
+  bearing: 0,
+  maxZoom: 22,
+  minZoom: 0,
+};
+
+const LIGHT_MAP_STYLE = "mapbox://styles/mapbox/light-v11";
+const DARK_MAP_STYLE = "mapbox://styles/mapbox/dark-v11";
+
+/**
+ *
+ * @param {Object} opts
+ * @param {string[]} [opts.userInput]
+ * @param {string[]} [opts.userEdges]
+ * @param {string[]} [opts.userVertexes]
+ * @param {object | null} opts.inputGeoJson
+ * @param {boolean} opts.userValidInput
+ * @param {Object} [opts.initialViewState]
+ * @param {({ hex: string }) => void | undefined} [opts.objectOnClick]
+ * @param {({ coordinate: [number, number], zoom: number, resolution: number }) => void | undefined} [opts.coordinateOnClick]
+ * @param {string[] | undefined} [opts.previewCells]
+ * @returns
+ */
+export function ExplorerMap(opts) {
+  const {
+    userInput = [],
+    userEdges = [],
+    userVertexes = [],
+    inputGeoJson = null,
+    userValidInput = false,
+    initialViewState = INITIAL_VIEW_STATE,
+    objectOnClick = undefined,
+    coordinateOnClick = undefined,
+    previewCells = undefined,
+  } = opts;
+  const context = useDocusaurusContext();
+  const [currentInitialViewState, setCurrentInitialViewState] =
+    useState(initialViewState);
+  const [deckLoaded, setDeckLoaded] = useState(false);
+  const deckRef = useRef();
+  const [windowWidth, setWindowWidth] = useState(null);
+  const { colorMode } = useColorMode();
+
+  useEffect(() => {
+    const updateWidth = () => {
+      setWindowWidth(window.width);
+    };
+
+    updateWidth();
+
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
+  }, [setWindowWidth]);
+
+  useEffect(() => {
+    if (userValidInput && deckRef.current) {
+      const { width, height } = deckRef.current.deck;
+
+      const viewport = new WebMercatorViewport({ width, height });
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+
+      const boundaries = [
+        ...userInput.map((hex) => cellToBoundary(hex, true)),
+        ...userEdges.map((edge) => directedEdgeToBoundary(edge, true)),
+        ...userVertexes.map((vertex) => {
+          const latLng = vertexToLatLng(vertex);
+          return [[latLng[1], latLng[0]]];
+        }),
+      ];
+      for (const coords of boundaries) {
+        for (const coord of coords) {
+          if (coord[0] < minX) {
+            minX = coord[0];
+          }
+          if (coord[0] > maxX) {
+            maxX = coord[0];
+          }
+          if (coord[1] < minY) {
+            minY = coord[1];
+          }
+          if (coord[1] > maxY) {
+            maxY = coord[1];
+          }
+        }
+      }
+
+      if (
+        Number.isFinite(minX) &&
+        Number.isFinite(minY) &&
+        Number.isFinite(maxX) &&
+        Number.isFinite(maxY) &&
+        width > 1 &&
+        height > 1
+      ) {
+        const hasVertex = userVertexes.length > 0;
+        const { latitude, longitude, zoom } = viewport.fitBounds(
+          [
+            [minX, minY],
+            [maxX, maxY],
+          ],
+          {
+            maxZoom: hasVertex ? 22 : undefined,
+            padding: 96,
+          },
+        );
+
+        setCurrentInitialViewState({
+          latitude,
+          longitude,
+          zoom,
+          transitionInterpolator: new FlyToInterpolator(),
+          transitionDuration: 1600,
+        });
+      }
+    }
+  }, [userInput, userEdges, userVertexes, userValidInput, deckLoaded]);
+
+  const addSelectedHexes = useCallback(
+    (hex) => {
+      objectOnClick({ hex });
+    },
+    [objectOnClick],
+  );
+
+  const {
+    handleResize: hexHandleResize,
+    hexLayers: backgroundHexLayers,
+    resolution,
+  } = useHex({
+    resolutionFrozen: false,
+    addSelectedHexes,
+  });
+
+  const inputGeoJsonLayers = inputGeoJson
+    ? [
+        new GeoJsonLayer({
+          id: "userinput",
+          data: inputGeoJson,
+          getFillColor: colorMode === "dark" ? [250, 250, 250] : [0, 0, 0],
+          getLineColor:
+            colorMode === "dark" ? [220, 220, 220] : [100, 100, 100],
+          getLineWidth: 1,
+          lineWidthMinPixels: 1,
+          lineWidthUnits: "pixels",
+          pickable: false,
+          stroked: true,
+          filled: false,
+          // @ts-expect-error
+          getDashArray: [5, 1],
+          dashJustified: true,
+          dashGapPickable: true,
+          extensions: [new PathStyleExtension({ dash: true })],
+        }),
+      ]
+    : [];
+  const inputPreviewLayers = previewCells
+    ? [
+        new H3HexagonLayer({
+          id: "previewhex",
+          data: previewCells.map((hex) => ({ hex })),
+          getHexagon: (d) => d.hex,
+          extruded: false,
+          filled: false,
+          stroked: true,
+          getLineColor:
+            colorMode === "dark" ? [140, 140, 140] : [120, 120, 120],
+          getLineWidth: 2,
+          lineWidthUnits: "pixels",
+          lineWidthMinPixels: 1,
+          highPrecision: true,
+          pickable: false,
+          filled: false,
+          // @ts-expect-error
+          getDashArray: [5, 5],
+          dashJustified: true,
+          dashGapPickable: true,
+          extensions: [new PathStyleExtension({ dash: true })],
+        }),
+      ]
+    : [];
+
+  // Directed edges are line geometry, so they need a path layer rather than the
+  // hexagon layer used for cells. Reusing the `hex` key keeps the tooltip and
+  // click-to-toggle handlers below working for edges without special casing.
+  const inputEdgeLayers = userEdges.length
+    ? [
+        new PathLayer({
+          id: "useredge",
+          data: userEdges.map((hex) => ({ hex })),
+          getPath: (d) => directedEdgeToBoundary(d.hex, true),
+          getColor: colorMode === "dark" ? [255, 255, 255] : [0, 0, 0],
+          getWidth: 3,
+          widthUnits: "pixels",
+          widthMinPixels: 3,
+          pickable: true,
+        }),
+      ]
+    : [];
+
+  const inputVertexLayers = userVertexes.length
+    ? [
+        new ScatterplotLayer({
+          id: "uservertex",
+          data: userVertexes.map((hex) => ({ hex })),
+          getPosition: (v) => {
+            const latLng = vertexToLatLng(v.hex);
+            return [latLng[1], latLng[0]];
+          },
+          filled: true,
+          stroked: false,
+          getFillColor: colorMode === "dark" ? [255, 255, 255] : [0, 0, 0],
+          getRadius: 3,
+          radiusMinPixels: 2,
+          radiusUnits: "pixels",
+          radiusScale: 1,
+          pickable: true,
+        }),
+      ]
+    : [];
+
+  const layers = userValidInput
+    ? [
+        new H3HexagonLayer({
+          id: "userhex",
+          data: userInput.map((hex) => ({ hex })),
+          getHexagon: (d) => d.hex,
+          extruded: false,
+          filled: false,
+          stroked: true,
+          getLineColor: colorMode === "dark" ? [255, 255, 255] : [0, 0, 0],
+          getLineWidth: 2,
+          lineWidthUnits: "pixels",
+          lineWidthMinPixels: 2,
+          highPrecision: true,
+          pickable: true,
+          filled: true,
+          getFillColor:
+            colorMode === "dark" ? [255, 255, 255, 30] : [0, 0, 0, 30],
+        }),
+        ...inputVertexLayers,
+        ...inputEdgeLayers,
+        ...inputPreviewLayers,
+        ...inputGeoJsonLayers,
+      ]
+    : backgroundHexLayers;
+
+  const getTooltip = useCallback(
+    ({ object }) => {
+      if (object && object.hex) {
+        return {
+          html: `<tt>${object.hex}</tt>`,
+          style:
+            colorMode === "dark"
+              ? {
+                  backgroundColor: "black",
+                  color: "white",
+                }
+              : {
+                  backgroundColor: "white",
+                  color: "black",
+                },
+        };
+      }
+    },
+    [colorMode],
+  );
+
+  const getCursor = useCallback(({ isHovering }) => {
+    if (isHovering) {
+      return "pointer";
+    } else {
+      return "auto";
+    }
+  }, []);
+
+  const onClick = useCallback(
+    ({ object, coordinate }) => {
+      if (object && object.hex) {
+        if (objectOnClick) {
+          objectOnClick({ hex: object.hex });
+        }
+      } else if (object && typeof object === "string") {
+        if (objectOnClick) {
+          objectOnClick({ hex: object });
+        }
+      } else {
+        if (coordinateOnClick) {
+          coordinateOnClick({ coordinate, resolution });
+        }
+      }
+    },
+    [objectOnClick, coordinateOnClick, resolution],
+  );
+
+  return (
+    <DeckGL
+      ref={deckRef}
+      layers={layers}
+      initialViewState={currentInitialViewState}
+      onViewStateChange={({ viewState }) => {
+        hexHandleResize(viewState);
+      }}
+      onResize={({ width, height }) => {
+        if (deckRef.current?.deck) {
+          hexHandleResize({
+            ...deckRef.current?.deck.viewState,
+            width,
+            height,
+          });
+        }
+      }}
+      views={new MapView({ repeat: true })}
+      getTooltip={getTooltip}
+      getCursor={getCursor}
+      onClick={onClick}
+      onLoad={() => {
+        setDeckLoaded(true);
+      }}
+      controller={{
+        dragPan: windowWidth && windowWidth >= MOBILE_CUTOFF_WINDOW_WIDTH,
+        dragRotate: false,
+      }}
+      touchAction="pan-y"
+    >
+      <Map
+        reuseMaps
+        interactive={false}
+        projection={"mercator"}
+        mapboxAccessToken={context.siteConfig.customFields.mapboxAccessToken}
+        mapStyle={colorMode === "dark" ? DARK_MAP_STYLE : LIGHT_MAP_STYLE}
+      />
+    </DeckGL>
+  );
+}

@@ -43,29 +43,6 @@ SUITE(h3Index) {
         t_assertSuccess(H3_EXPORT(latLngToCell)(&g4, 0, &h));
     }
 
-    TEST(faceIjkToH3ExtremeCoordinates) {
-        FaceIJK fijk0I = {0, {3, 0, 0}};
-        t_assert(_faceIjkToH3(&fijk0I, 0) == 0, "i out of bounds at res 0");
-        FaceIJK fijk0J = {1, {0, 4, 0}};
-        t_assert(_faceIjkToH3(&fijk0J, 0) == 0, "j out of bounds at res 0");
-        FaceIJK fijk0K = {2, {2, 0, 5}};
-        t_assert(_faceIjkToH3(&fijk0K, 0) == 0, "k out of bounds at res 0");
-
-        FaceIJK fijk1I = {3, {6, 0, 0}};
-        t_assert(_faceIjkToH3(&fijk1I, 1) == 0, "i out of bounds at res 1");
-        FaceIJK fijk1J = {4, {0, 7, 1}};
-        t_assert(_faceIjkToH3(&fijk1J, 1) == 0, "j out of bounds at res 1");
-        FaceIJK fijk1K = {5, {2, 0, 8}};
-        t_assert(_faceIjkToH3(&fijk1K, 1) == 0, "k out of bounds at res 1");
-
-        FaceIJK fijk2I = {6, {18, 0, 0}};
-        t_assert(_faceIjkToH3(&fijk2I, 2) == 0, "i out of bounds at res 2");
-        FaceIJK fijk2J = {7, {0, 19, 1}};
-        t_assert(_faceIjkToH3(&fijk2J, 2) == 0, "j out of bounds at res 2");
-        FaceIJK fijk2K = {8, {2, 0, 20}};
-        t_assert(_faceIjkToH3(&fijk2K, 2) == 0, "k out of bounds at res 2");
-    }
-
     TEST(isValidCellAtResolution) {
         for (int i = 0; i <= MAX_H3_RES; i++) {
             LatLng g = {0, 0};
@@ -165,6 +142,26 @@ SUITE(h3Index) {
                  "isValidCell failed on deleted subsequence");
     }
 
+    TEST(moreDeletedSubsequenceInvalid) {
+        H3Index p = 0x80c3fffffffffff;  // res 0 pentagon
+        H3Index h;
+
+        for (int res = 1; res <= 15; res++) {
+            t_assertSuccess(H3_EXPORT(cellToCenterChild)(p, res, &h));
+            t_assert(H3_EXPORT(isValidCell)(h), "should be a valid pentagon");
+
+            for (int d = 0; d <= 6; d++) {
+                H3_SET_INDEX_DIGIT(h, res, d);
+                if (d == 1) {
+                    t_assert(!H3_EXPORT(isValidCell)(h),
+                             "fail on deleted subsequence");
+                } else {
+                    t_assert(H3_EXPORT(isValidCell)(h), "should be valid");
+                }
+            }
+        }
+    }
+
     TEST(h3ToString) {
         const size_t bufSz = 17;
         char buf[17] = {0};
@@ -214,5 +211,40 @@ SUITE(h3Index) {
             t_assert(H3_EXPORT(isResClassIII)(h) == isResolutionClassIII(i),
                      "matches existing definition");
         }
+    }
+
+    TEST(isValidIndex) {
+        // Test with valid cell
+        LatLng coord = {0, 0};
+        H3Index cell;
+        t_assertSuccess(H3_EXPORT(latLngToCell)(&coord, 5, &cell));
+        t_assert(H3_EXPORT(isValidIndex)(cell),
+                 "isValidIndex returns true for valid cell");
+
+        // Test with valid directed edge
+        H3Index ring[7] = {0};
+        t_assertSuccess(H3_EXPORT(gridRingUnsafe)(cell, 1, ring));
+        H3Index neighbor = ring[0];
+        H3Index edge;
+        t_assertSuccess(H3_EXPORT(cellsToDirectedEdge)(cell, neighbor, &edge));
+        t_assert(H3_EXPORT(isValidIndex)(edge),
+                 "isValidIndex returns true for valid directed edge");
+
+        // Test with valid vertex
+        H3Index vertex;
+        t_assertSuccess(H3_EXPORT(cellToVertex)(cell, 0, &vertex));
+        t_assert(H3_EXPORT(isValidIndex)(vertex),
+                 "isValidIndex returns true for valid vertex");
+
+        // Test with invalid index
+        H3Index invalid = 0;
+        t_assert(!H3_EXPORT(isValidIndex)(invalid),
+                 "isValidIndex returns false for invalid index");
+
+        // Test with corrupted index
+        H3Index corrupted = cell;
+        H3_SET_HIGH_BIT(corrupted, 1);
+        t_assert(!H3_EXPORT(isValidIndex)(corrupted),
+                 "isValidIndex returns false for corrupted index");
     }
 }

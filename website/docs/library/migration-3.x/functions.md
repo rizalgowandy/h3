@@ -27,8 +27,8 @@ The following function and structure names changed from 3.x to 4.0.0:
 | `h3GetResolution`             | `getResolution`       |
 | *DNE*                         | `getMode`             |
 | `h3GetFaces`                  | `getIcosahedronFaces` |
-| `geoToH3`                     | `latLngToCell`         |
-| `h3ToGeo`                     | `cellToLatLng`         |
+| `geoToH3`                     | `latLngToCell`        |
+| `h3ToGeo`                     | `cellToLatLng`        |
 | `compact`                     | `compactCells`        |
 | `uncompact`                   | `uncompactCells`      |
 | `polyfill`                    | `polygonToCells`      |
@@ -96,6 +96,13 @@ We may expose them in the future if a need becomes clear.
 | *DNE*        | `gridRingSafe`   | `gridDiskDistancesSafe`          |
 | *DNE*        | `gridRing`       | `gridRingUnsafe`, `gridRingSafe` |
 
+#### Local IJ
+
+|         3.x name          |   4.0.0 name    |
+|---------------------------|-----------------|
+| `experimentalLocalIjToH3` | `localIjToCell` |
+| `experimentalH3ToLocalIj` | `cellToLocalIj` |
+
 ### H3 Edge Types
 
 Instead of `UnidirectionalEdge`, use the term `DirectedEdge`.
@@ -116,16 +123,22 @@ For a future undirected edge mode, use the term `Edge`.
 
 ### Area/Length Functions
 
-|    3.x name.   |         4.0.0 name          |
-|----------------|-----------------------------|
-| `hexAreaKm2`   | `getHexagonAreaAvgKm2`      |
-| `hexAreaM2`    | `getHexagonAreaAvgM2`       |
-| `edgeLengthKm` | `getHexagonEdgeLengthAvgKm` |
-| `edgeLengthM`  | `getHexagonEdgeLengthAvgM`  |
-| *DNE*          | `getPentagonAreaAvg*`       |
-| *DNE*          | `getPentagonEdgeLengthAvg*` |
-| *DNE*          | `cellAreaKm2`               |
-| *DNE*          | `cellAreaM2`                |
+|    3.x name.          |         4.0.0 name          |
+|-----------------------|-----------------------------|
+| `hexAreaKm2`          | `getHexagonAreaAvgKm2`      |
+| `hexAreaM2`           | `getHexagonAreaAvgM2`       |
+| `edgeLengthKm`        | `getHexagonEdgeLengthAvgKm` |
+| `edgeLengthM`         | `getHexagonEdgeLengthAvgM`  |
+| *DNE*                 | `getPentagonAreaAvg*`       |
+| *DNE*                 | `getPentagonEdgeLengthAvg*` |
+| *DNE*                 | `cellAreaKm2`               |
+| *DNE*                 | `cellAreaM2`                |
+| `pointDistKm`         | `greatCircleDistanceKm`     |
+| `pointDistM`          | `greatCircleDistanceM`      |
+| `pointDistRads`       | `greatCircleDistanceRads`   |
+| `exactEdgeLengthRads` | `edgeLengthRads`            |
+| `exactEdgeLengthKm`   | `edgeLengthKm`              |
+| `exactEdgeLengthM`    | `edgeLengthM`               |
 
 **Note**: `cellAreaKm2` and `cellAreaM2` would return the actual area of
 the passed-in cell.
@@ -136,21 +149,23 @@ the passed-in cell.
 
 - rename `GeoBoundary` to `CellBoundary` to indicate it is space-limited to describing the geometry of cells
 
-|      3.x name     |    4.0.0 name     |               Notes               |
-|-------------------|-------------------|-----------------------------------|
-| `GeoBoundary`     | `CellBoundary`    | <= 10 stack-allocated `LatLng`s |
-| `GeoCoord`        | `LatLng`        |                                   |
-| `Geofence`        | `GeoLoop`         | heap-allocated `LatLng`s        |
-| `GeoPolygon`      | `GeoPolygon`      |                                   |
-| `GeoMultiPolygon` | `GeoMultiPolygon` | currently not used                |
+|      3.x name     |    4.0.0 name     |               Notes                |
+|-------------------|-------------------|------------------------------------|
+| `GeoBoundary`     | `CellBoundary`    | &lt;= 10 stack-allocated `LatLng`s |
+| `GeoCoord`        | `LatLng`          |                                    |
+| `Geofence`        | `GeoLoop`         | heap-allocated `LatLng`s           |
+| `GeoPolygon`      | `GeoPolygon`      |                                    |
+| `GeoMultiPolygon` | `GeoMultiPolygon` | currently not used                 |
 
 
 ### Functions
 
-|              3.x name             |       4.0.0 name         |         Notes          |
-|-----------------------------------|--------------------------|------------------------|
-| `h3ToGeoBoundary`                 | `cellToBoundary`         | returns `CellBoundary` |
-| *DNE*                             | `cellToLoop`             | returns `GeoLoop`      |
-| *DNE*                             | `loopToBoundary`         |                        |
-| *DNE*                             | `boundaryToLoop`         |                        |
-| `getH3UnidirectionalEdgeBoundary` | `directedEdgeToBoundary` | returns `CellBoundary` |
+|              3.x name             |       4.0.0 name            |         Notes              |
+|-----------------------------------|-----------------------------|----------------------------|
+| `h3ToGeoBoundary`                 | `cellToBoundary`            | returns `CellBoundary`     |
+| *DNE*                             | `cellToLoop`                | returns `GeoLoop`          |
+| *DNE*                             | `loopToBoundary`            |                            |
+| *DNE*                             | `boundaryToLoop`            |                            |
+| `getH3UnidirectionalEdgeBoundary` | `directedEdgeToBoundary`    | returns `CellBoundary`     |
+| `h3SetToLinkedGeo`                | `cellsToLinkedMultiPolygon` | returns `LinkedGeoPolygon` |
+| `h3SetToMultiPolygon`             | `cellsToMultiPolygon`       | bindings only              |

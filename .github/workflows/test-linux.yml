@@ -7,31 +7,42 @@ on:
     branches: [master, stable-*]
 
 jobs:
-  tests:
-    name: Test Compile ${{ matrix.compiler }}
+  cmake:
+    name: CMake correctness checks
     runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure build
+        run: cmake -DAUDIT_SOURCE_FILE_LIST=ON .
+
+  gcc-tests:
+    name: gcc ${{ matrix.build_type }} ${{ matrix.runs_on }}
+    runs-on: ${{ matrix.runs_on }}
     env:
-      CC: ${{ matrix.compiler }}
+      CC: gcc
 
     strategy:
       matrix:
-        compiler: [clang, gcc]
+        build_type: ["Debug", "Release"]
+        runs_on: ["ubuntu-latest", "ubuntu-22.04-arm"]
 
     steps:
-      - uses: actions/checkout@v2.1.1
+      - uses: actions/checkout@v6
 
       - name: Install Doxygen
         run: |
           sudo apt update
-          sudo apt-get install doxygen graphviz clang-format-9
+          sudo apt-get install doxygen graphviz clang-format-14
 
       - name: Configure build
-        run: cmake -Bbuild -DWARNINGS_AS_ERRORS=ON .
+        run: cmake -Bbuild -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DWARNINGS_AS_ERRORS=ON .
 
       - name: Formatting check
         working-directory: build
         run: |
-          clang-format-9 --version
+          clang-format-14 --version
           make format
           git diff --exit-code
 
@@ -60,16 +71,81 @@ jobs:
         run: |
           mkdir build/examples
           cd build/examples
-          cmake ../../examples
+          cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} ../../examples
           make
-          make test
+          env CTEST_OUTPUT_ON_FAILURE=1 make test 
+
+  clang-tests:
+    name: clang ${{ matrix.build_type }} ${{ matrix.runs_on }} ${{ matrix.compile_opt }}
+    runs-on: ${{ matrix.runs_on }}
+    env:
+      CC: clang
+
+    strategy:
+      matrix:
+        # See Clang docs for more information on the sanitizers:
+        # https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html
+        compile_opt: ["", "-fsanitize=undefined,float-divide-by-zero -fno-sanitize-recover=undefined,float-divide-by-zero", "-fsanitize=memory -fno-sanitize-recover=memory", "-fsanitize=address -fno-sanitize-recover=address"]
+        build_type: ["Debug", "Release"]
+        runs_on: ["ubuntu-latest", "ubuntu-22.04-arm"]
+        exclude:
+          # TODO: Include msan on arm
+          - runs_on: ubuntu-22.04-arm
+            compile_opt: "-fsanitize=memory -fno-sanitize-recover=memory"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Doxygen
+        run: |
+          sudo apt update
+          sudo apt-get install doxygen graphviz clang-format-14
+
+      - name: Configure build
+        run: cmake -Bbuild -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DWARNINGS_AS_ERRORS=ON -DCMAKE_C_FLAGS="${{ matrix.compile_opt }}" .
+
+      - name: Formatting check
+        working-directory: build
+        run: |
+          clang-format-14 --version
+          make format
+          git diff --exit-code
+
+      - name: Build
+        working-directory: build
+        run: make
+
+      - name: binding-functions
+        working-directory: build
+        run: |
+          make binding-functions
+          test -s binding-functions
+
+      - name: Tests
+        working-directory: build
+        run: |
+          make CTEST_OUTPUT_ON_FAILURE=1 test
+          sudo make install
+
+        # Note the packages aren't used to test the examples below
+      - name: Test packaging
+        working-directory: build
+        run: cpack -D CPACK_PACKAGE_CONTACT="Test build in CI"
+
+      - name: Examples
+        run: |
+          mkdir build/examples
+          cd build/examples
+          cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_C_FLAGS="${{ matrix.compile_opt }}" ../../examples
+          make
+          env CTEST_OUTPUT_ON_FAILURE=1 make test 
 
   valgrind-tests:
-    name: Test Valgrind
+    name: Valgrind
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2.1.1
+      - uses: actions/checkout@v6
 
       - name: Install Valgrind
         run: |
@@ -96,7 +172,7 @@ jobs:
       CC: gcc
 
     steps:
-      - uses: actions/checkout@v2.1.1
+      - uses: actions/checkout@v6
 
       - name: Install lcov
         run: |
@@ -104,7 +180,7 @@ jobs:
           sudo apt-get install lcov
 
       - name: Configure build
-        run: cmake -DCMAKE_BUILD_TYPE=Debug -DWARNINGS_AS_ERRORS=ON -DH3_PREFIX=testprefix_ .
+        run: cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON -DWARNINGS_AS_ERRORS=ON -DH3_PREFIX=testprefix_ .
 
       - name: Build
         run: make

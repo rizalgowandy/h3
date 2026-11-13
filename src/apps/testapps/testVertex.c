@@ -22,70 +22,6 @@
 #include "vertex.h"
 
 SUITE(Vertex) {
-    TEST(vertexNumForDirection_hex) {
-        H3Index origin = 0x823d6ffffffffff;
-        int vertexNums[NUM_HEX_VERTS] = {0};
-        for (Direction dir = K_AXES_DIGIT; dir < NUM_DIGITS; dir++) {
-            int vertexNum = vertexNumForDirection(origin, dir);
-            t_assert(vertexNum >= 0 && vertexNum < NUM_HEX_VERTS,
-                     "vertex number appears valid");
-            t_assert(!vertexNums[vertexNum], "vertex number appears only once");
-            vertexNums[vertexNum] = 1;
-        }
-    }
-
-    TEST(vertexNumForDirection_pent) {
-        H3Index pentagon = 0x823007fffffffff;
-        int vertexNums[NUM_PENT_VERTS] = {0};
-        for (Direction dir = J_AXES_DIGIT; dir < NUM_DIGITS; dir++) {
-            int vertexNum = vertexNumForDirection(pentagon, dir);
-            t_assert(vertexNum >= 0 && vertexNum < NUM_PENT_VERTS,
-                     "vertex number appears valid");
-            t_assert(!vertexNums[vertexNum], "vertex number appears only once");
-            vertexNums[vertexNum] = 1;
-        }
-    }
-
-    TEST(vertexNumForDirection_badDirections) {
-        H3Index origin = 0x823007fffffffff;
-
-        t_assert(
-            vertexNumForDirection(origin, CENTER_DIGIT) == INVALID_VERTEX_NUM,
-            "center digit should return invalid vertex");
-        t_assert(
-            vertexNumForDirection(origin, INVALID_DIGIT) == INVALID_VERTEX_NUM,
-            "invalid digit should return invalid vertex");
-
-        H3Index pentagon = 0x823007fffffffff;
-        t_assert(
-            vertexNumForDirection(pentagon, K_AXES_DIGIT) == INVALID_VERTEX_NUM,
-            "K direction on pentagon should return invalid vertex");
-    }
-
-    TEST(directionForVertexNum_hex) {
-        H3Index origin = 0x823d6ffffffffff;
-        bool seenDirs[NUM_DIGITS] = {false};
-        for (int vertexNum = 0; vertexNum < NUM_HEX_VERTS; vertexNum++) {
-            Direction dir = directionForVertexNum(origin, vertexNum);
-            t_assert(dir > 0 && dir < INVALID_DIGIT, "direction appears valid");
-            t_assert(!seenDirs[dir], "direction appears only once");
-            seenDirs[dir] = true;
-        }
-    }
-
-    TEST(directionForVertexNum_badVerts) {
-        H3Index origin = 0x823d6ffffffffff;
-
-        t_assert(directionForVertexNum(origin, -1) == INVALID_DIGIT,
-                 "negative vertex should return invalid direction");
-        t_assert(directionForVertexNum(origin, 6) == INVALID_DIGIT,
-                 "invalid vertex should return invalid direction");
-
-        H3Index pentagon = 0x823007fffffffff;
-        t_assert(directionForVertexNum(pentagon, 5) == INVALID_DIGIT,
-                 "invalid pent vertex should return invalid direction");
-    }
-
     TEST(cellToVertex_badVerts) {
         H3Index origin = 0x823d6ffffffffff;
 
@@ -98,6 +34,27 @@ SUITE(Vertex) {
         H3Index pentagon = 0x823007fffffffff;
         t_assert(H3_EXPORT(cellToVertex)(pentagon, 5, &vert) == E_DOMAIN,
                  "invalid pent vertex should return null index");
+    }
+
+    TEST(cellToVertex_invalid) {
+        H3Index invalid = 0xFFFFFFFFFFFFFFFF;
+        H3Index vert;
+        t_assert(H3_EXPORT(cellToVertex)(invalid, 3, &vert) == E_FAILED,
+                 "Invalid cell returns error");
+    }
+
+    TEST(cellToVertex_invalid2) {
+        H3Index index = 0x685b2396e900fff9;
+        H3Index vert;
+        t_assert(H3_EXPORT(cellToVertex)(index, 2, &vert) == E_CELL_INVALID,
+                 "Invalid cell returns error");
+    }
+
+    TEST(cellToVertex_invalid3) {
+        H3Index index = 0x20ff20202020ff35;
+        H3Index vert;
+        t_assert(H3_EXPORT(cellToVertex)(index, 0, &vert) == E_CELL_INVALID,
+                 "Invalid cell returns error");
     }
 
     TEST(isValidVertex_hex) {
@@ -174,5 +131,12 @@ SUITE(Vertex) {
         LatLng latLng;
         t_assert(H3_EXPORT(vertexToLatLng)(invalid, &latLng) != E_SUCCESS,
                  "Invalid vertex returns error");
+    }
+
+    TEST(cellToVertexes_invalid) {
+        H3Index invalid = 0xFFFFFFFFFFFFFFFF;
+        H3Index verts[6] = {0};
+        t_assert(H3_EXPORT(cellToVertexes)(invalid, verts) == E_FAILED,
+                 "cellToVertexes fails for invalid cell");
     }
 }

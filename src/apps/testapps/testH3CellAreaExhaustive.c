@@ -23,6 +23,7 @@
 
 #include <math.h>
 
+#include "adder.h"
 #include "constants.h"
 #include "h3api.h"
 #include "iterators.h"
@@ -34,9 +35,9 @@
  * neighboring cells. Tests positivity and commutativity.
  *
  * Tests the functions:
- *     distanceRads
- *     distanceKm
- *     distanceM
+ *     greatCircleDistanceRads
+ *     greatCircleDistanceKm
+ *     greatCircleDistanceM
  *
  * @param  edge  H3 directed edge denoting neighboring cells
  */
@@ -55,33 +56,35 @@ static void haversine_assert(H3Index edge) {
 
     double ab, ba;
 
-    ab = H3_EXPORT(distanceRads)(&a, &b);
-    ba = H3_EXPORT(distanceRads)(&b, &a);
+    ab = H3_EXPORT(greatCircleDistanceRads)(&a, &b);
+    ba = H3_EXPORT(greatCircleDistanceRads)(&b, &a);
     t_assert(ab > 0, pos);
     t_assert(ab == ba, comm);
 
-    ab = H3_EXPORT(distanceKm)(&a, &b);
-    ba = H3_EXPORT(distanceKm)(&b, &a);
+    ab = H3_EXPORT(greatCircleDistanceKm)(&a, &b);
+    ba = H3_EXPORT(greatCircleDistanceKm)(&b, &a);
     t_assert(ab > 0, pos);
     t_assert(ab == ba, comm);
 
-    ab = H3_EXPORT(distanceM)(&a, &b);
-    ba = H3_EXPORT(distanceM)(&b, &a);
+    ab = H3_EXPORT(greatCircleDistanceM)(&a, &b);
+    ba = H3_EXPORT(greatCircleDistanceM)(&b, &a);
     t_assert(ab > 0, pos);
     t_assert(ab == ba, comm);
 
-    t_assert(H3_EXPORT(distanceKm)(&a, &b) > H3_EXPORT(distanceRads)(&a, &b),
+    t_assert(H3_EXPORT(greatCircleDistanceKm)(&a, &b) >
+                 H3_EXPORT(greatCircleDistanceRads)(&a, &b),
              "measurement in kilometers should be greater than in radians");
-    t_assert(H3_EXPORT(distanceM)(&a, &b) > H3_EXPORT(distanceKm)(&a, &b),
+    t_assert(H3_EXPORT(greatCircleDistanceM)(&a, &b) >
+                 H3_EXPORT(greatCircleDistanceKm)(&a, &b),
              "measurement in meters should be greater than in kilometers");
 }
 
 /**
  * Tests positivity of edge length calculation for the functions:
  *
- *      exactEdgeLengthRads
- *      exactEdgeLengthKm
- *      exactEdgeLengthM
+ *      edgeLengthRads
+ *      edgeLengthKm
+ *      edgeLengthM
  *
  * @param  edge  edge to compute the length of
  */
@@ -89,11 +92,11 @@ static void edge_length_assert(H3Index edge) {
     char msg[] = "edge has positive length";
 
     double length;
-    t_assertSuccess(H3_EXPORT(exactEdgeLengthRads)(edge, &length));
+    t_assertSuccess(H3_EXPORT(edgeLengthRads)(edge, &length));
     t_assert(length > 0, msg);
-    t_assertSuccess(H3_EXPORT(exactEdgeLengthKm)(edge, &length));
+    t_assertSuccess(H3_EXPORT(edgeLengthKm)(edge, &length));
     t_assert(length > 0, msg);
-    t_assertSuccess(H3_EXPORT(exactEdgeLengthM)(edge, &length));
+    t_assertSuccess(H3_EXPORT(edgeLengthM)(edge, &length));
     t_assert(length > 0, msg);
 }
 
@@ -109,9 +112,18 @@ static void edge_length_assert(H3Index edge) {
 static void cell_area_assert(H3Index cell) {
     char msg[] = "cell has positive area";
 
-    t_assert(H3_EXPORT(cellAreaRads2)(cell) > 0, msg);
-    t_assert(H3_EXPORT(cellAreaKm2)(cell) > 0, msg);
-    t_assert(H3_EXPORT(cellAreaM2)(cell) > 0, msg);
+    double areaRads;
+    t_assertSuccess(H3_EXPORT(cellAreaRads2)(cell, &areaRads));
+    t_assert(areaRads > 0, msg);
+    double areaKm2;
+    t_assertSuccess(H3_EXPORT(cellAreaKm2)(cell, &areaKm2));
+    t_assert(areaKm2 > 0, msg);
+    double areaM2;
+    t_assertSuccess(H3_EXPORT(cellAreaM2)(cell, &areaM2));
+    t_assert(areaM2 > 0, msg);
+
+    t_assert(areaRads < areaKm2, "area in rads smaller than area in km2");
+    t_assert(areaKm2 < areaM2, "area in km2 smaller than area in m2");
 }
 
 /**
@@ -123,15 +135,18 @@ static void cell_area_assert(H3Index cell) {
  * @param  target     expected earth area in some units
  * @param  tol        error tolerance allowed between expected and actual
  */
-static void earth_area_test(int res, double (*cell_area)(H3Index),
+static void earth_area_test(int res, H3Error (*cell_area)(H3Index, double *),
                             double target, double tol) {
-    double area = 0.0;
-    for (IterCellsResolution iter = iterInitRes(res); iter.h;
-         iterStepRes(&iter)) {
-        area += (*cell_area)(iter.h);
+    Adder adder = {};
+    IterCellsResolution iter = iterInitRes(res);
+
+    for (; iter.h; iterStepRes(&iter)) {
+        double cellArea;
+        t_assertSuccess((*cell_area)(iter.h, &cellArea));
+        kadd(&adder, cellArea);
     }
 
-    t_assert(fabs(area - target) < tol,
+    t_assert(fabs(adder.sum - target) < tol,
              "sum of all cells should give earth area");
 }
 
@@ -163,28 +178,24 @@ SUITE(h3CellAreaExhaustive) {
         double km2 = rads2 * EARTH_RADIUS_KM * EARTH_RADIUS_KM;
         double m2 = km2 * 1000 * 1000;
 
-        // Notice the drop in accuracy at resolution 1.
-        // I think this has something to do with Class II vs Class III
-        // resolutions.
-
         earth_area_test(0, H3_EXPORT(cellAreaRads2), rads2, 1e-14);
         earth_area_test(0, H3_EXPORT(cellAreaKm2), km2, 1e-6);
         earth_area_test(0, H3_EXPORT(cellAreaM2), m2, 1e0);
 
-        earth_area_test(1, H3_EXPORT(cellAreaRads2), rads2, 1e-9);
-        earth_area_test(1, H3_EXPORT(cellAreaKm2), km2, 1e-1);
-        earth_area_test(1, H3_EXPORT(cellAreaM2), m2, 1e5);
+        earth_area_test(1, H3_EXPORT(cellAreaRads2), rads2, 1e-14);
+        earth_area_test(1, H3_EXPORT(cellAreaKm2), km2, 1e-6);
+        earth_area_test(1, H3_EXPORT(cellAreaM2), m2, 1e0);
 
-        earth_area_test(2, H3_EXPORT(cellAreaRads2), rads2, 1e-12);
-        earth_area_test(2, H3_EXPORT(cellAreaKm2), km2, 1e-5);
+        earth_area_test(2, H3_EXPORT(cellAreaRads2), rads2, 1e-14);
+        earth_area_test(2, H3_EXPORT(cellAreaKm2), km2, 1e-6);
         earth_area_test(2, H3_EXPORT(cellAreaM2), m2, 1e0);
 
-        earth_area_test(3, H3_EXPORT(cellAreaRads2), rads2, 1e-11);
-        earth_area_test(3, H3_EXPORT(cellAreaKm2), km2, 1e-3);
-        earth_area_test(3, H3_EXPORT(cellAreaM2), m2, 1e3);
+        earth_area_test(3, H3_EXPORT(cellAreaRads2), rads2, 1e-14);
+        earth_area_test(3, H3_EXPORT(cellAreaKm2), km2, 1e-6);
+        earth_area_test(3, H3_EXPORT(cellAreaM2), m2, 1e0);
 
-        earth_area_test(4, H3_EXPORT(cellAreaRads2), rads2, 1e-11);
-        earth_area_test(4, H3_EXPORT(cellAreaKm2), km2, 1e-3);
-        earth_area_test(4, H3_EXPORT(cellAreaM2), m2, 1e2);
+        earth_area_test(4, H3_EXPORT(cellAreaRads2), rads2, 1e-14);
+        earth_area_test(4, H3_EXPORT(cellAreaKm2), km2, 1e-6);
+        earth_area_test(4, H3_EXPORT(cellAreaM2), m2, 1e0);
     }
 }

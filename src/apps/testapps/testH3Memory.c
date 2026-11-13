@@ -22,9 +22,13 @@
 #include <math.h>
 #include <string.h>
 
+#include "cellsToMultiPoly.h"
 #include "h3Index.h"
 #include "h3api.h"
 #include "latLng.h"
+#include "linkedGeo.h"
+#include "polyfill.h"
+#include "polygon.h"
 #include "test.h"
 #include "utility.h"
 
@@ -79,7 +83,7 @@ void *test_prefix_realloc(void *ptr, size_t size) {
 
 void test_prefix_free(void *ptr) {
     actualFreeCalls++;
-    return free(ptr);
+    free(ptr);
 }
 
 H3Index sunnyvale = 0x89283470c27ffff;
@@ -95,7 +99,8 @@ static GeoPolygon sfGeoPolygon;
 SUITE(h3Memory) {
     TEST(gridDisk) {
         int k = 2;
-        int hexCount = H3_EXPORT(maxGridDiskSize)(k);
+        int64_t hexCount;
+        t_assertSuccess(H3_EXPORT(maxGridDiskSize)(k, &hexCount));
         H3Index *gridDiskOutput = calloc(hexCount, sizeof(H3Index));
 
         resetMemoryCounters(0);
@@ -111,12 +116,13 @@ SUITE(h3Memory) {
         resetMemoryCounters(0);
         failAlloc = true;
         memset(gridDiskOutput, 0, hexCount * sizeof(H3Index));
-        t_assert(H3_EXPORT(gridDisk)(pentagon, k, gridDiskOutput) == E_MEMORY,
-                 "gridDisk returns E_MEMORY");
+        t_assert(
+            H3_EXPORT(gridDisk)(pentagon, k, gridDiskOutput) == E_MEMORY_ALLOC,
+            "gridDisk returns E_MEMORY_ALLOC");
         t_assert(actualAllocCalls == 1, "gridDisk called alloc");
         t_assert(actualFreeCalls == 0, "gridDisk did not call free");
 
-        for (int i = 0; i < hexCount; i++) {
+        for (int64_t i = 0; i < hexCount; i++) {
             t_assert(!gridDiskOutput[i],
                      "gridDisk did not produce output without alloc");
         }
@@ -124,10 +130,45 @@ SUITE(h3Memory) {
         free(gridDiskOutput);
     }
 
+    TEST(gridRing) {
+        const int k = 2;
+        int64_t ringSize;
+        t_assertSuccess(H3_EXPORT(maxGridRingSize)(k, &ringSize));
+        H3Index *gridRingOutput = calloc(ringSize, sizeof(H3Index));
+
+        resetMemoryCounters(0);
+        t_assertSuccess(H3_EXPORT(gridRing)(sunnyvale, k, gridRingOutput));
+        t_assert(actualAllocCalls == 0, "gridRing did not call alloc");
+        t_assert(actualFreeCalls == 0, "gridRing did not call free");
+
+        resetMemoryCounters(2);
+        t_assertSuccess(H3_EXPORT(gridRing)(pentagon, k, gridRingOutput));
+        t_assert(actualAllocCalls == 2, "gridRing called alloc 2 times");
+        t_assert(actualFreeCalls == 2, "gridRing called free 2 times");
+
+        resetMemoryCounters(0);
+        failAlloc = true;
+        t_assert(
+            H3_EXPORT(gridRing)(pentagon, k, gridRingOutput) == E_MEMORY_ALLOC,
+            "gridRing returns E_MEMORY_ALLOC");
+        t_assert(actualAllocCalls == 1, "gridRing called alloc 1 time");
+        t_assert(actualFreeCalls == 0, "gridRing did not call free");
+
+        resetMemoryCounters(1);
+        t_assert(
+            H3_EXPORT(gridRing)(pentagon, k, gridRingOutput) == E_MEMORY_ALLOC,
+            "gridRing returns E_MEMORY_ALLOC");
+        t_assert(actualAllocCalls == 2, "gridRing called alloc 2 times");
+        t_assert(actualFreeCalls == 1, "gridRing called free 1 time");
+
+        free(gridRingOutput);
+    }
+
     TEST(compactCells) {
         int k = 9;
-        int hexCount = H3_EXPORT(maxGridDiskSize)(k);
-        int expectedCompactCount = 73;
+        int64_t hexCount;
+        t_assertSuccess(H3_EXPORT(maxGridDiskSize)(k, &hexCount));
+        int64_t expectedCompactCount = 73;
 
         // Generate a set of hexagons to compact
         H3Index *sunnyvaleExpanded = calloc(hexCount, sizeof(H3Index));
@@ -142,25 +183,25 @@ SUITE(h3Memory) {
         failAlloc = true;
         H3Error err =
             H3_EXPORT(compactCells)(sunnyvaleExpanded, compressed, hexCount);
-        t_assert(err == E_MEMORY, "malloc failed (1)");
+        t_assert(err == E_MEMORY_ALLOC, "malloc failed (1)");
         t_assert(actualAllocCalls == 1, "alloc called once");
         t_assert(actualFreeCalls == 0, "free not called");
 
         resetMemoryCounters(1);
         err = H3_EXPORT(compactCells)(sunnyvaleExpanded, compressed, hexCount);
-        t_assert(err == E_MEMORY, "malloc failed (2)");
+        t_assert(err == E_MEMORY_ALLOC, "malloc failed (2)");
         t_assert(actualAllocCalls == 2, "alloc called twice");
         t_assert(actualFreeCalls == 1, "free called once");
 
         resetMemoryCounters(2);
         err = H3_EXPORT(compactCells)(sunnyvaleExpanded, compressed, hexCount);
-        t_assert(err == E_MEMORY, "malloc failed (3)");
+        t_assert(err == E_MEMORY_ALLOC, "malloc failed (3)");
         t_assert(actualAllocCalls == 3, "alloc called three times");
         t_assert(actualFreeCalls == 2, "free called twice");
 
         resetMemoryCounters(3);
         err = H3_EXPORT(compactCells)(sunnyvaleExpanded, compressed, hexCount);
-        t_assert(err == E_MEMORY, "compactCells failed (4)");
+        t_assert(err == E_MEMORY_ALLOC, "compactCells failed (4)");
         t_assert(actualAllocCalls == 4, "alloc called four times");
         t_assert(actualFreeCalls == 3, "free called three times");
 
@@ -170,8 +211,8 @@ SUITE(h3Memory) {
         t_assert(actualAllocCalls == 4, "alloc called four times");
         t_assert(actualFreeCalls == 4, "free called four times");
 
-        int count = 0;
-        for (int i = 0; i < hexCount; i++) {
+        int64_t count = 0;
+        for (int64_t i = 0; i < hexCount; i++) {
             if (compressed[i] != 0) {
                 count++;
             }
@@ -187,31 +228,31 @@ SUITE(h3Memory) {
         sfGeoPolygon.numHoles = 0;
 
         int64_t numHexagons;
-        t_assertSuccess(
-            H3_EXPORT(maxPolygonToCellsSize)(&sfGeoPolygon, 9, &numHexagons));
+        t_assertSuccess(H3_EXPORT(maxPolygonToCellsSize)(&sfGeoPolygon, 9, 0,
+                                                         &numHexagons));
         H3Index *hexagons = calloc(numHexagons, sizeof(H3Index));
 
         resetMemoryCounters(0);
         failAlloc = true;
-        H3Error err = H3_EXPORT(polygonToCells)(&sfGeoPolygon, 9, hexagons);
-        t_assert(err == E_MEMORY, "polygonToCells failed (1)");
+        H3Error err = H3_EXPORT(polygonToCells)(&sfGeoPolygon, 9, 0, hexagons);
+        t_assert(err == E_MEMORY_ALLOC, "polygonToCells failed (1)");
         t_assert(actualAllocCalls == 1, "alloc called once");
         t_assert(actualFreeCalls == 0, "free not called");
 
         resetMemoryCounters(1);
-        err = H3_EXPORT(polygonToCells)(&sfGeoPolygon, 9, hexagons);
-        t_assert(err == E_MEMORY, "polygonToCells failed (2)");
+        err = H3_EXPORT(polygonToCells)(&sfGeoPolygon, 9, 0, hexagons);
+        t_assert(err == E_MEMORY_ALLOC, "polygonToCells failed (2)");
         t_assert(actualAllocCalls == 2, "alloc called twice");
         t_assert(actualFreeCalls == 1, "free called once");
 
         resetMemoryCounters(2);
-        err = H3_EXPORT(polygonToCells)(&sfGeoPolygon, 9, hexagons);
-        t_assert(err == E_MEMORY, "polygonToCells failed (3)");
+        err = H3_EXPORT(polygonToCells)(&sfGeoPolygon, 9, 0, hexagons);
+        t_assert(err == E_MEMORY_ALLOC, "polygonToCells failed (3)");
         t_assert(actualAllocCalls == 3, "alloc called three times");
         t_assert(actualFreeCalls == 2, "free called twice");
 
         resetMemoryCounters(3);
-        err = H3_EXPORT(polygonToCells)(&sfGeoPolygon, 9, hexagons);
+        err = H3_EXPORT(polygonToCells)(&sfGeoPolygon, 9, 0, hexagons);
         t_assert(err == E_SUCCESS, "polygonToCells succeeded (4)");
         t_assert(actualAllocCalls == 3, "alloc called three times");
         t_assert(actualFreeCalls == 3, "free called three times");
@@ -219,5 +260,295 @@ SUITE(h3Memory) {
         int64_t actualNumIndexes = countNonNullIndexes(hexagons, numHexagons);
         t_assert(actualNumIndexes == 1253, "got expected polygonToCells size");
         free(hexagons);
+    }
+
+    TEST(polygonToCellsExperimental) {
+        sfGeoPolygon.geoloop = sfGeoLoop;
+        sfGeoPolygon.numHoles = 0;
+
+        int64_t numHexagons;
+        t_assertSuccess(H3_EXPORT(maxPolygonToCellsSize)(
+            &sfGeoPolygon, 9, CONTAINMENT_CENTER, &numHexagons));
+        H3Index *hexagons = calloc(numHexagons, sizeof(H3Index));
+
+        resetMemoryCounters(0);
+        failAlloc = true;
+        H3Error err = H3_EXPORT(polygonToCellsExperimental)(
+            &sfGeoPolygon, 9, CONTAINMENT_CENTER, numHexagons, hexagons);
+        t_assert(err == E_MEMORY_ALLOC,
+                 "polygonToCellsExperimental failed (1)");
+        t_assert(actualAllocCalls == 1, "alloc called once");
+        t_assert(actualFreeCalls == 0, "free not called");
+
+        resetMemoryCounters(1);
+        err = H3_EXPORT(polygonToCellsExperimental)(
+            &sfGeoPolygon, 9, CONTAINMENT_CENTER, numHexagons, hexagons);
+        t_assert(err == E_SUCCESS, "polygonToCellsExperimental succeeded (1)");
+        t_assert(actualAllocCalls == 1, "alloc called one time");
+        t_assert(actualFreeCalls == 1, "free called one time");
+
+        int64_t actualNumIndexes = countNonNullIndexes(hexagons, numHexagons);
+        t_assert(actualNumIndexes == 1253,
+                 "got expected polygonToCellsExperimental size");
+        free(hexagons);
+    }
+
+    TEST(cellsToMultiPolygon) {
+        // Exercise all error paths in cellsToMultiPolygon for coverage
+        GeoMultiPolygon mpoly;
+        H3Index cells2[] = {sunnyvale, 0x89283470c2fffff};
+        H3Error err;
+
+        // Find minimum allocations needed for success
+        int minAllocs = 0;
+        for (int permitted = 0; permitted < 50; permitted++) {
+            resetMemoryCounters(permitted);
+            if (permitted == 0) failAlloc = true;  // Fail immediately
+            err = H3_EXPORT(cellsToMultiPolygon)(cells2, 2, &mpoly);
+            if (err == E_SUCCESS) {
+                minAllocs = permitted;
+                H3_EXPORT(destroyGeoMultiPolygon)(&mpoly);
+                break;
+            }
+        }
+        t_assert(minAllocs > 0, "Should require allocations");
+
+        // Exercise error path at each allocation point for coverage
+        for (int permitted = 0; permitted < minAllocs; permitted++) {
+            resetMemoryCounters(permitted);
+            if (permitted == 0) failAlloc = true;
+            err = H3_EXPORT(cellsToMultiPolygon)(cells2, 2, &mpoly);
+            t_assert(err == E_MEMORY_ALLOC, "Should fail before success");
+        }
+    }
+
+    TEST(cellsToMultiPolygonWithHoles) {
+        // Exercise error paths with polygons that have holes
+        H3Index cells[] = {
+            0x8027fffffffffff, 0x802bfffffffffff, 0x804dfffffffffff,
+            0x8067fffffffffff, 0x806dfffffffffff, 0x8049fffffffffff,
+        };
+        int numCells = 6;
+        GeoMultiPolygon mpoly;
+        H3Error err;
+
+        // Find minimum allocations and exercise all error paths
+        for (int permitted = 0; permitted < 50; permitted++) {
+            resetMemoryCounters(permitted);
+            if (permitted == 0) failAlloc = true;
+            err = H3_EXPORT(cellsToMultiPolygon)(cells, numCells, &mpoly);
+            if (err == E_SUCCESS) {
+                H3_EXPORT(destroyGeoMultiPolygon)(&mpoly);
+                break;
+            }
+        }
+    }
+
+    TEST(cellsToMultiPolygonEmpty) {
+        // Test the empty (globe) case
+        H3Index *cells = NULL;
+        GeoMultiPolygon mpoly;
+
+        resetMemoryCounters(0);
+        H3Error err = H3_EXPORT(cellsToMultiPolygon)(cells, 0, &mpoly);
+        t_assert(err == E_SUCCESS, "Empty set should succeed");
+        t_assert(mpoly.numPolygons == 0, "Empty set has no polygons");
+        t_assert(mpoly.polygons == NULL, "Empty set has NULL polygons");
+        t_assert(actualAllocCalls == 0, "Empty set needs no allocations");
+    }
+
+    TEST(cellsToMultiPolygonPartialFailure) {
+        // Test failure after partial allocation to hit cleanup loops
+        // Use a large diverse set of cells to create many loops and polygons
+        H3Index cells[] = {
+            // Multiple separate regions to create multiple polygons
+            0x8027fffffffffff, 0x802bfffffffffff, 0x804dfffffffffff,
+            0x8067fffffffffff, 0x806dfffffffffff, 0x8049fffffffffff,
+            0x805ffffffffffff, 0x8057fffffffffff, 0x807dfffffffffff,
+            0x80a5fffffffffff, 0x80a9fffffffffff, 0x808bfffffffffff,
+            0x801bfffffffffff, 0x8035fffffffffff, 0x803ffffffffffff,
+            0x8053fffffffffff, 0x8043fffffffffff, 0x8021fffffffffff,
+            0x8011fffffffffff, 0x801ffffffffffff, 0x8097fffffffffff,
+        };
+        int numCells = 21;
+        GeoMultiPolygon mpoly;
+        H3Error err;
+
+        // Find the allocation sequence and test every failure point
+        int successPoint = 0;
+        for (int permitted = 1; permitted < 150; permitted++) {
+            resetMemoryCounters(permitted);
+            err = H3_EXPORT(cellsToMultiPolygon)(cells, numCells, &mpoly);
+            if (err == E_SUCCESS) {
+                successPoint = permitted;
+                H3_EXPORT(destroyGeoMultiPolygon)(&mpoly);
+                break;
+            }
+        }
+
+        // Test every single failure point to maximize branch coverage
+        // This should hit all cleanup paths including:
+        // - createSortableLoop failures after j > 0
+        // - createMultiPolygon failures after createSortableLoopSet succeeds
+        // - holes allocation failures after some polygons created
+        for (int permitted = 1; permitted < successPoint; permitted++) {
+            resetMemoryCounters(permitted);
+            err = H3_EXPORT(cellsToMultiPolygon)(cells, numCells, &mpoly);
+            t_assert(err == E_MEMORY_ALLOC, "Should fail with memory error");
+        }
+    }
+
+    TEST(linkedGeoPolygonToGeoMultiPolygon) {
+        // Generate a multi-polygon GeoMultiPolygon with holes from real
+        // cells, then convert to linked form to use as test input
+        H3Index cells[] = {
+            0x8027fffffffffff, 0x802bfffffffffff, 0x804dfffffffffff,
+            0x8067fffffffffff, 0x806dfffffffffff, 0x8049fffffffffff,
+            0x8055fffffffffff,
+        };
+        GeoMultiPolygon src;
+        resetMemoryCounters(0);
+        t_assertSuccess(H3_EXPORT(cellsToMultiPolygon)(cells, 7, &src));
+
+        LinkedGeoPolygon linked;
+        resetMemoryCounters(0);
+        t_assertSuccess(geoMultiPolygonToLinkedGeoPolygon(&src, &linked));
+        H3_EXPORT(destroyGeoMultiPolygon)(&src);
+
+        // Now test linkedGeoPolygonToGeoMultiPolygon failure paths
+        GeoMultiPolygon mpoly;
+        H3Error err;
+
+        int minAllocs = 0;
+        for (int permitted = 1; permitted < 50; permitted++) {
+            resetMemoryCounters(permitted);
+            err = linkedGeoPolygonToGeoMultiPolygon(&linked, &mpoly);
+            if (err == E_SUCCESS) {
+                minAllocs = permitted;
+                H3_EXPORT(destroyGeoMultiPolygon)(&mpoly);
+                break;
+            }
+        }
+        t_assert(minAllocs > 0, "Should require allocations");
+
+        for (int permitted = 0; permitted < minAllocs; permitted++) {
+            resetMemoryCounters(permitted);
+            if (permitted == 0) failAlloc = true;
+            err = linkedGeoPolygonToGeoMultiPolygon(&linked, &mpoly);
+            t_assert(err == E_MEMORY_ALLOC, "Should fail before success");
+        }
+
+        resetMemoryCounters(0);
+        H3_EXPORT(destroyLinkedMultiPolygon)(&linked);
+    }
+
+    TEST(geoMultiPolygonToLinkedGeoPolygon) {
+        // Generate a multi-polygon GeoMultiPolygon with holes from real cells
+        H3Index cells[] = {
+            0x8027fffffffffff, 0x802bfffffffffff, 0x804dfffffffffff,
+            0x8067fffffffffff, 0x806dfffffffffff, 0x8049fffffffffff,
+            0x8055fffffffffff,
+        };
+        GeoMultiPolygon mpoly;
+        resetMemoryCounters(0);
+        t_assertSuccess(H3_EXPORT(cellsToMultiPolygon)(cells, 7, &mpoly));
+
+        LinkedGeoPolygon out;
+        H3Error err;
+
+        int minAllocs = 0;
+        for (int permitted = 1; permitted < 50; permitted++) {
+            resetMemoryCounters(permitted);
+            err = geoMultiPolygonToLinkedGeoPolygon(&mpoly, &out);
+            if (err == E_SUCCESS) {
+                minAllocs = permitted;
+                H3_EXPORT(destroyLinkedMultiPolygon)(&out);
+                break;
+            }
+        }
+        t_assert(minAllocs > 0, "Should require allocations");
+
+        for (int permitted = 0; permitted < minAllocs; permitted++) {
+            resetMemoryCounters(permitted);
+            if (permitted == 0) failAlloc = true;
+            err = geoMultiPolygonToLinkedGeoPolygon(&mpoly, &out);
+            t_assert(err == E_MEMORY_ALLOC, "Should fail before success");
+        }
+
+        resetMemoryCounters(0);
+        H3_EXPORT(destroyGeoMultiPolygon)(&mpoly);
+    }
+
+    TEST(cellsToLinkedMultiPolygon) {
+        // Exercise allocation failure paths in cellsToLinkedMultiPolygon,
+        // which composes cellsToMultiPolygon +
+        // geoMultiPolygonToLinkedGeoPolygon. This catches double-free bugs when
+        // the second phase fails and both the callee and caller attempt
+        // cleanup.
+        H3Index cells[] = {
+            0x8027fffffffffff, 0x802bfffffffffff, 0x804dfffffffffff,
+            0x8067fffffffffff, 0x806dfffffffffff, 0x8049fffffffffff,
+            0x8055fffffffffff,
+        };
+        int numCells = ARRAY_SIZE(cells);
+        LinkedGeoPolygon polygon;
+        H3Error err;
+
+        int minAllocs = 0;
+        for (int permitted = 1; permitted < 100; permitted++) {
+            resetMemoryCounters(permitted);
+            err =
+                H3_EXPORT(cellsToLinkedMultiPolygon)(cells, numCells, &polygon);
+            if (err == E_SUCCESS) {
+                minAllocs = permitted;
+                H3_EXPORT(destroyLinkedMultiPolygon)(&polygon);
+                break;
+            }
+        }
+        t_assert(minAllocs > 0, "Should require allocations");
+
+        for (int permitted = 0; permitted < minAllocs; permitted++) {
+            resetMemoryCounters(permitted);
+            if (permitted == 0) failAlloc = true;
+            err =
+                H3_EXPORT(cellsToLinkedMultiPolygon)(cells, numCells, &polygon);
+            t_assert(err == E_MEMORY_ALLOC, "Should fail before success");
+        }
+    }
+
+    TEST(cellsToMultiPolygonGlobe) {
+        // Test with full set of resolution 0 cells
+        // All edges cancel out, resulting in globe (8 triangular polygons)
+        H3Index res0Cells[122];  // NUM_BASE_CELLS = 122
+        GeoMultiPolygon mpoly;
+        H3Error err;
+
+        // Get all resolution 0 cells
+        err = H3_EXPORT(getRes0Cells)(res0Cells);
+        t_assert(err == E_SUCCESS, "getRes0Cells should succeed");
+
+        // Find minimum allocations needed for success
+        int minAllocs = 0;
+        for (int permitted = 0; permitted < 100; permitted++) {
+            resetMemoryCounters(permitted);
+            if (permitted == 0) failAlloc = true;  // Fail immediately
+            err = H3_EXPORT(cellsToMultiPolygon)(res0Cells, 122, &mpoly);
+            if (err == E_SUCCESS) {
+                minAllocs = permitted;
+                H3_EXPORT(destroyGeoMultiPolygon)(&mpoly);
+                break;
+            }
+        }
+        t_assert(minAllocs > 0, "Globe case should require allocations");
+
+        // Exercise error path at each allocation point
+        // This tests the createGlobeMultiPolygon error paths
+        for (int permitted = 0; permitted < minAllocs; permitted++) {
+            resetMemoryCounters(permitted);
+            if (permitted == 0) failAlloc = true;
+            err = H3_EXPORT(cellsToMultiPolygon)(res0Cells, 122, &mpoly);
+            t_assert(err == E_MEMORY_ALLOC,
+                     "Should fail with memory error before success");
+        }
     }
 }

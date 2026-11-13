@@ -21,7 +21,7 @@
 
 #define PADDED_COUNT 16
 
-SUITE(getPentagons) {
+SUITE(pentagonIndexes) {
     TEST(propertyTests) {
         int expectedCount = H3_EXPORT(pentagonCount)();
 
@@ -54,6 +54,16 @@ SUITE(getPentagons) {
             t_assert(numFound == expectedCount,
                      "there should be exactly 12 pentagons");
         }
+    }
+
+    TEST(getPentagonsInvalid) {
+        H3Index h3Indexes[PADDED_COUNT] = {0};
+        t_assert(H3_EXPORT(getPentagons)(16, h3Indexes) == E_RES_DOMAIN,
+                 "getPentagons of invalid resolutions fails");
+        t_assert(H3_EXPORT(getPentagons)(100, h3Indexes) == E_RES_DOMAIN,
+                 "getPentagons of invalid resolutions fails");
+        t_assert(H3_EXPORT(getPentagons)(-1, h3Indexes) == E_RES_DOMAIN,
+                 "getPentagons of invalid resolutions fails");
     }
 
     TEST(invalidPentagons) {

@@ -17,7 +17,7 @@ As a C library, bindings can be made to call H3 functions from different program
 
 ## BigQuery
 
-- [cartodb/bigquery-jslibs](https://github.com/CartoDB/bigquery-jslibs)
+- [CARTO Analytics Toolbox](https://github.com/CartoDB/analytics-toolbox-core#bigquery)
 
 ## C&#35;
 
@@ -27,11 +27,28 @@ As a C library, bindings can be made to call H3 functions from different program
 
 ## ClickHouse
 
-- [Functions for Working with H3 Indexes](https://clickhouse.tech/docs/en/sql-reference/functions/geo/h3/)
+- [Functions for Working with H3 Indexes](https://clickhouse.com/docs/en/sql-reference/functions/geo/h3/)
 
 ## Clojure 
 
 - [Factual/geo](https://github.com/Factual/geo)
+
+## Dart 
+
+- [festelo/h3_flutter](https://github.com/festelo/h3_flutter)
+- [codewithsam110g/h3_flutter_plus](https://github.com/codewithsam110g/h3_flutter_bindings)
+
+## Databricks
+
+- [H3 geospatial functions](https://docs.databricks.com/sql/language-manual/sql-ref-h3-geospatial-functions.html)
+
+## Delphi
+
+- [SkybuckFlying/h3_delphi](https://github.com/SkybuckFlying/h3_delphi)
+
+## DuckDB
+
+- [isaacbrodsky/h3-duckdb](https://github.com/isaacbrodsky/h3-duckdb)
 
 ## ECL
 
@@ -54,10 +71,19 @@ As a C library, bindings can be made to call H3 functions from different program
 - [uber/h3-js](https://github.com/uber/h3-js)
 - [dfellis/h3-node](https://github.com/dfellis/h3-node)
 - [realPrimoh/h3-reactnative](https://github.com/realPrimoh/h3-reactnative)
+- [vgorte/react-native-nitro-h3](https://github.com/vgorte/react-native-nitro-h3) - React Native via Nitro Modules
 
 ## Julia
 
 - [wookay/H3.jl](https://github.com/wookay/H3.jl)
+
+## Kinetica
+
+- [H3 Functions](https://docs.kinetica.com/7.1/sql/query/#h3-functions)
+
+## Nim
+
+- [ayman-albaz/nim-h3](https://github.com/ayman-albaz/nim-h3)
 
 ## OCaml
 
@@ -70,16 +96,22 @@ As a C library, bindings can be made to call H3 functions from different program
 ## PHP
 
 - [neatlife/php-h3](https://github.com/neatlife/php-h3)
+- [abler98/h3-php](https://github.com/abler98/h3-php)
+- [Foysal50x/h3-php](https://github.com/Foysal50x/h3-php) - It uses PHP's built-in FFI extension, Can be installed with composer, avoiding the need to compile C code, manage system dependencies
 
 ## PostgreSQL
 
-- [dlr-eoc/pgh3](https://github.com/dlr-eoc/pgh3)
-- [bytesandbrains/h3-pg](https://github.com/bytesandbrains/h3-pg)
+- [zachasme/h3-pg](https://github.com/zachasme/h3-pg)
+
+## Presto
+
+- [foursquare/h3-presto](https://github.com/foursquare/h3-presto)
 
 ## Python
 
 - [uber/h3-py](https://github.com/uber/h3-py)
 - [DahnJ/H3-Pandas](https://github.com/DahnJ/H3-Pandas)
+- [filimoa/h3-polars](https://github.com/Filimoa/polars-h3)
 
 ## R
 
@@ -89,10 +121,33 @@ As a C library, bindings can be made to call H3 functions from different program
 
 ## Ruby
 
-- [StuartApp/h3_ruby](https://github.com/StuartApp/h3_ruby)
+- [seanhandley/h3_ruby](https://github.com/seanhandley/h3_ruby)
 
 ## Rust
 
 - [rustyconover/libh3-sys](https://github.com/rustyconover/libh3-sys)
 - [rustyconover/libh3](https://github.com/rustyconover/libh3)
 - [nmandery/h3ron](https://github.com/nmandery/h3ron)
+- [HydroniumLabs/h3o](https://github.com/HydroniumLabs/h3o) - A translation instead of a binding
+
+## Snowflake
+
+- [CARTO Analytics Toolbox](https://github.com/CartoDB/analytics-toolbox-core#snowflake)
+
+## SQLite3
+
+- [isaacbrodsky/h3-sqlite3](https://github.com/isaacbrodsky/h3-sqlite3)
+
+## SQL Server
+
+- [tbbuck/H3.net.SqlClr](https://github.com/tbbuck/H3.net.SqlClr)
+
+## Spark
+
+- [jchotard/h3spark](https://github.com/JosephChotard/h3spark) (4.x)
+- [kevinschaich/h3-pyspark](https://github.com/kevinschaich/h3-pyspark) (3.x)
+
+## Swift
+- [JeremyEspresso/swift-h3](https://github.com/JeremyEspresso/swift-h3) (4.x)
+- [pawelmajcher/SwiftyH3](https://github.com/pawelmajcher/SwiftyH3) (4.x)
+

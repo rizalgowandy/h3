@@ -1,3 +1,6 @@
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+
 /** @type {import('@docusaurus/types').DocusaurusConfig} */
 module.exports = {
   title: 'H3',
@@ -5,7 +8,13 @@ module.exports = {
   url: 'https://h3geo.org',
   baseUrl: '/',
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
+  onBrokenAnchors: 'throw',
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: 'throw',
+    },
+  },
+  onDuplicateRoutes: 'throw',
   favicon: 'favicon.ico',
   organizationName: 'uber', // Usually your GitHub org/user name.
   projectName: 'h3', // Usually your repo name.
@@ -24,7 +33,7 @@ module.exports = {
         {
           to: 'docs',
           activeBaseRegex: 'docs(/)$',
-          label: 'Intro',
+          label: 'About',
           position: 'left',
         },
         {
@@ -80,12 +89,29 @@ module.exports = {
           title: 'Community',
           items: [
             {
+              label: 'Slack',
+              href: 'https://join.slack.com/t/h3-core/shared_invite/zt-g6u5r1hf-W_~uVJmfeiWtMQuBGc1NNg',
+            },
+            {
               label: 'Stack Overflow',
               href: 'https://stackoverflow.com/questions/tagged/h3',
             },
+          ],
+        },
+        {
+          title: 'Bindings',
+          items: [
             {
-              label: 'Slack',
-              href: 'https://join.slack.com/t/h3-core/shared_invite/zt-g6u5r1hf-W_~uVJmfeiWtMQuBGc1NNg',
+              label: 'Python',
+              href: 'https://uber.github.io/h3-py/',
+            },
+            {
+              label: 'JavaScript',
+              href: 'https://github.com/uber/h3-js',
+            },
+            {
+              label: 'More bindings',
+              to: 'docs/community/bindings',
             },
           ],
         },
@@ -107,21 +133,46 @@ module.exports = {
       '@docusaurus/preset-classic',
       {
         docs: {
+          remarkPlugins: [remarkMath],
+          rehypePlugins: [rehypeKatex],
           sidebarPath: require.resolve('./sidebars.js'),
           editUrl: ({docPath}) => {
             // Per docusaurus, apply changes to the "next" version, not the current one
             return `https://github.com/uber/h3/edit/master/website/docs/${docPath}`;
           },
+          lastVersion: 'current',
           versions: {
             current: {
-              label: '4.x (alpha)'
+              label: '4.x'
             },
           },
         },
         theme: {
-          customCss: require.resolve('./src/css/custom.css'),
+          customCss: [
+            require.resolve('./src/css/custom.css'),
+            require.resolve('./node_modules/mapbox-gl/dist/mapbox-gl.css'),
+          ],
         },
       },
     ],
+  ],
+  stylesheets: [
+      {
+          href: "https://cdn.jsdelivr.net/npm/katex@0.13.11/dist/katex.min.css",
+          integrity: "sha384-Um5gpz1odJg5Z4HAmzPtgZKdTBHZdw8S29IecapCSB31ligYPhHQZMIlWLYQGVoc",
+          crossorigin: "anonymous",
+      },
+  ],
+  customFields: {
+    mapboxAccessToken: process.env.MapboxAccessToken
+  },
+  plugins: [
+    [
+      require.resolve('docusaurus-lunr-search'),
+      {
+        'excludeRoutes': ['docs/3.x/**'],
+        'disableVersioning': true,
+      }
+    ]
   ],
 };

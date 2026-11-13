@@ -58,7 +58,7 @@ function example() {
         [37.8151571999998453, -122.4798767000009008]
     ];
     const res = 7;
-    return h3.polyfill(polygon, res);
+    return h3v3.polyfill(polygon, res);
 }
 ```
 
@@ -69,7 +69,7 @@ polyfill takes a given GeoJSON-like data structure and preallocated,
 zeroed memory, and fills it with the hexagons that are contained by
 the GeoJSON-like data structure.
 
-Containment is determined by the cells' centroids. A partioning
+Containment is determined by the cells' centroids. A partitioning
 using the GeoJSON-like data structure, where polygons cover an area
 without overlap, will result in a partitioning in the H3 grid, where
 cells cover the same area without overlap.
@@ -168,7 +168,7 @@ h3.h3SetToMultiPolygon(polygon, geoJson)
 ```js live
 function example() {
     const hexagons = ['872830828ffffff', '87283082effffff'];
-    return h3.h3SetToMultiPolygon(hexagons, true);
+    return h3v3.h3SetToMultiPolygon(hexagons, true);
 }
 ```
 
